@@ -1,4 +1,4 @@
-import { input, confirm, select, password } from "@inquirer/prompts";
+import { input, confirm, password } from "@inquirer/prompts";
 import chalk from "chalk";
 
 export interface InitConfig {
@@ -12,7 +12,6 @@ export interface InitConfig {
   vmCpus: number;
   vmDisk: number;
   enableTunnel: boolean;
-  nestingLevel: "standard" | "advanced";
 }
 
 export async function promptInitConfig(): Promise<InitConfig> {
@@ -88,22 +87,6 @@ export async function promptInitConfig(): Promise<InitConfig> {
     default: true,
   });
 
-  const nestingLevel = await select({
-    message: "Isolation level:",
-    choices: [
-      {
-        name: "Standard (VM + Docker) — recommended",
-        value: "standard" as const,
-        description: "Two levels of isolation. Good security, ~80% native performance.",
-      },
-      {
-        name: "Advanced (VM + Docker + inner KVM) — maximum isolation",
-        value: "advanced" as const,
-        description: "Triple nesting. Maximum isolation, 40-50% performance overhead.",
-      },
-    ],
-  });
-
   return {
     anthropicKey,
     openaiKey,
@@ -115,6 +98,5 @@ export async function promptInitConfig(): Promise<InitConfig> {
     vmCpus,
     vmDisk,
     enableTunnel,
-    nestingLevel,
   };
 }

@@ -1,12 +1,24 @@
 import { Command } from "commander";
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import { createSpinner, succeed, fail } from "../ui/spinner.js";
 import { log } from "../ui/logger.js";
 import { loadConfig } from "../core/secrets.js";
 import { isVmRunning } from "../core/qemu.js";
-import { sshExec } from "../core/ssh.js";
+import { sshExec, sshUploadFile } from "../core/ssh.js";
+
+function getReleaseTarball(): string {
+  const dir = path.dirname(fileURLToPath(import.meta.url));
+  const tarballPath = path.join(dir, "nexus-release.tar.gz");
+  if (fs.existsSync(tarballPath)) return tarballPath;
+  const rootPath = path.resolve(dir, "..", "dist", "nexus-release.tar.gz");
+  if (fs.existsSync(rootPath)) return rootPath;
+  throw new Error("nexus-release.tar.gz not found. Reinstall buildwithnexus to get the latest release.");
+}
 
 export const updateCommand = new Command("update")
-  .description("Pull latest NEXUS code and restart")
+  .description("Update NEXUS to the latest bundled release and restart")
   .action(async () => {
     const config = loadConfig();
     if (!config) {
@@ -19,14 +31,23 @@ export const updateCommand = new Command("update")
       process.exit(1);
     }
 
-    let spinner = createSpinner("Pulling latest code...");
+    let spinner = createSpinner("Uploading release tarball...");
     spinner.start();
-    const pull = await sshExec(config.sshPort, "cd /home/nexus/nexus && git pull origin main");
-    if (pull.code !== 0) {
-      fail(spinner, `Git pull failed: ${pull.stderr}`);
-      process.exit(1);
-    }
-    succeed(spinner, "Code updated");
+    const tarballPath = getReleaseTarball();
+    await sshUploadFile(config.sshPort, tarballPath, "/tmp/nexus-release.tar.gz");
+    succeed(spinner, "Tarball uploaded");
+
+    spinner = createSpinner("Stopping NEXUS server...");
+    spinner.start();
+    await sshExec(config.sshPort, "sudo systemctl stop nexus");
+    succeed(spinner, "Server stopped");
+
+    spinner = createSpinner("Extracting new release...");
+    spinner.start();
+    await sshExec(config.sshPort, "rm -rf /home/nexus/nexus/src /home/nexus/nexus/docker");
+    await sshExec(config.sshPort, "tar xzf /tmp/nexus-release.tar.gz -C /home/nexus/nexus");
+    await sshExec(config.sshPort, "rm -f /tmp/nexus-release.tar.gz");
+    succeed(spinner, "Release extracted");
 
     spinner = createSpinner("Installing dependencies...");
     spinner.start();
@@ -40,7 +61,7 @@ export const updateCommand = new Command("update")
 
     spinner = createSpinner("Restarting NEXUS server...");
     spinner.start();
-    await sshExec(config.sshPort, "sudo systemctl restart nexus");
+    await sshExec(config.sshPort, "sudo systemctl start nexus");
     await new Promise((r) => setTimeout(r, 3000));
     const health = await sshExec(config.sshPort, "curl -sf http://localhost:4200/health");
     if (health.code === 0) {

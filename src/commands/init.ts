@@ -21,13 +21,23 @@ import {
   launchVm,
   isVmRunning,
 } from "../core/qemu.js";
-import { generateSshKey, addSshConfig, waitForSsh, getPubKey } from "../core/ssh.js";
+import { generateSshKey, addSshConfig, waitForSsh, getPubKey, sshUploadFile } from "../core/ssh.js";
 import { renderCloudInit, createCloudInitIso } from "../core/cloudinit.js";
 import { waitForCloudInit, waitForServer } from "../core/health.js";
 import { installCloudflared, startTunnel } from "../core/tunnel.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+function getReleaseTarball(): string {
+  const dir = path.dirname(fileURLToPath(import.meta.url));
+  const tarballPath = path.join(dir, "nexus-release.tar.gz");
+  if (fs.existsSync(tarballPath)) return tarballPath;
+  // Fallback: check relative to project root
+  const rootPath = path.resolve(dir, "..", "dist", "nexus-release.tar.gz");
+  if (fs.existsSync(rootPath)) return rootPath;
+  throw new Error("nexus-release.tar.gz not found. Run: npm run bundle");
+}
 
 const TOTAL_PHASES = 10;
 
@@ -65,7 +75,6 @@ export const initCommand = new Command("init")
         vmCpus: userConfig.vmCpus,
         vmDisk: userConfig.vmDisk,
         enableTunnel: userConfig.enableTunnel,
-        nestingLevel: userConfig.nestingLevel,
         sshPort: 2222,
         httpPort: 4200,
         httpsPort: 8443,
@@ -116,6 +125,11 @@ export const initCommand = new Command("init")
 
       // Phase 5: Cloud-Init
       showPhase(5, TOTAL_PHASES, "Cloud-Init Generation");
+      spinner = createSpinner("Locating release tarball...");
+      spinner.start();
+      const tarballPath = getReleaseTarball();
+      succeed(spinner, `Release tarball found (${path.basename(tarballPath)})`);
+
       spinner = createSpinner("Rendering cloud-init...");
       spinner.start();
       const pubKey = getPubKey();
@@ -145,7 +159,15 @@ export const initCommand = new Command("init")
         fail(spinner, "SSH connection timed out");
         process.exit(1);
       }
-      spinner.text = "Cloud-init provisioning (cloning NEXUS, building Docker, installing deps)...";
+      succeed(spinner, "SSH connected");
+
+      spinner = createSpinner("Uploading NEXUS release tarball...");
+      spinner.start();
+      await sshUploadFile(config.sshPort, tarballPath, "/tmp/nexus-release.tar.gz");
+      succeed(spinner, "Tarball uploaded");
+
+      spinner = createSpinner("Cloud-init provisioning (extracting NEXUS, building Docker, installing deps)...");
+      spinner.start();
       const cloudInitDone = await waitForCloudInit(config.sshPort);
       if (!cloudInitDone) {
         fail(spinner, "Cloud-init timed out");

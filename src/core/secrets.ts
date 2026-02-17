@@ -11,7 +11,6 @@ export interface NexusConfig {
   vmCpus: number;
   vmDisk: number;
   enableTunnel: boolean;
-  nestingLevel: "standard" | "advanced";
   sshPort: number;
   httpPort: number;
   httpsPort: number;

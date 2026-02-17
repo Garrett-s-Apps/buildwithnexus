@@ -21,11 +21,9 @@ packages:
   - tmux
   - auditd
   - ufw
-<% if (config.nestingLevel === 'advanced') { %>
   - qemu-system-arm64
   - libvirt-daemon
   - libvirt-clients
-<% } %>
 
 runcmd:
   # Security hardening
@@ -65,15 +63,21 @@ runcmd:
     DAEMON
   - systemctl restart docker
 
-<% if (config.nestingLevel === 'advanced') { %>
-  # KVM/libvirt for triple nesting
+  # KVM/libvirt for triple nesting (mandatory)
   - systemctl start libvirtd
   - systemctl enable libvirtd
   - usermod -aG libvirt nexus
-<% } %>
 
-  # Clone NEXUS
-  - sudo -u nexus git clone --depth 1 https://github.com/Garrett-s-Apps/nexus.git /home/nexus/nexus
+  # Extract NEXUS from release tarball (uploaded via SCP after SSH is ready)
+  - sudo -u nexus mkdir -p /home/nexus/nexus
+  - |
+    # Wait for tarball upload (max 5 minutes)
+    for i in $(seq 1 60); do
+      [ -f /tmp/nexus-release.tar.gz ] && break
+      sleep 5
+    done
+  - sudo -u nexus tar xzf /tmp/nexus-release.tar.gz -C /home/nexus/nexus
+  - rm -f /tmp/nexus-release.tar.gz
 
   # Python environment
   - sudo -u nexus python3 -m venv /home/nexus/nexus/.venv
@@ -87,19 +91,58 @@ runcmd:
   - sudo -u nexus mkdir -p /home/nexus/.nexus
   - sudo -u nexus python3 -c "import os; open('/home/nexus/.nexus/.db_salt','wb').write(os.urandom(16))"
 
-  # Create systemd unit
+  # Nesting enforcement — NEXUS refuses to start outside nested environment
+  - |
+    cat > /home/nexus/nexus/check_nesting.sh << 'NESTING'
+    #!/usr/bin/env bash
+    # Verify triple-nested isolation: Host → QEMU VM → Docker → inner KVM
+    ERRORS=0
+
+    # Must be inside a VM (detect QEMU/KVM hypervisor)
+    if ! grep -qi 'qemu\|kvm\|virtual' /sys/class/dmi/id/product_name 2>/dev/null && \
+       ! systemd-detect-virt -q 2>/dev/null; then
+      echo "FATAL: NEXUS must run inside a QEMU/KVM virtual machine." >&2
+      ERRORS=$((ERRORS + 1))
+    fi
+
+    # Docker must be available
+    if ! docker version >/dev/null 2>&1; then
+      echo "FATAL: Docker is not available. NEXUS requires Docker for container isolation." >&2
+      ERRORS=$((ERRORS + 1))
+    fi
+
+    # KVM/libvirt must be available for inner VMs
+    if ! virsh version >/dev/null 2>&1; then
+      echo "FATAL: libvirt/KVM is not available. NEXUS requires inner VM capability." >&2
+      ERRORS=$((ERRORS + 1))
+    fi
+
+    if [ "$ERRORS" -gt 0 ]; then
+      echo "NEXUS requires triple-nested isolation (VM + Docker + inner KVM)." >&2
+      echo "Install via: npx buildwithnexus init" >&2
+      exit 1
+    fi
+
+    echo "Nesting check passed: VM + Docker + KVM verified."
+    exit 0
+    NESTING
+  - chmod +x /home/nexus/nexus/check_nesting.sh
+  - chown nexus:nexus /home/nexus/nexus/check_nesting.sh
+
+  # Create systemd unit with nesting enforcement
   - |
     cat > /etc/systemd/system/nexus.service << 'UNIT'
     [Unit]
     Description=NEXUS Autonomous Runtime
-    After=network.target docker.service
-    Requires=docker.service
+    After=network.target docker.service libvirtd.service
+    Requires=docker.service libvirtd.service
 
     [Service]
     Type=simple
     User=nexus
     WorkingDirectory=/home/nexus/nexus
     Environment=PATH=/home/nexus/nexus/.venv/bin:/usr/local/bin:/usr/bin:/bin
+    ExecStartPre=/home/nexus/nexus/check_nesting.sh
     ExecStart=/home/nexus/nexus/.venv/bin/python -m src.main
     Restart=on-failure
     RestartSec=5
@@ -147,7 +190,7 @@ write_files:
     permissions: '0644'
     owner: nexus:nexus
     content: |
-      nested_vm_enabled: <%= config.nestingLevel === 'advanced' %>
+      nested_vm_enabled: true
       orchestration_mode: autonomous
-      container_isolation: <%= config.nestingLevel === 'advanced' ? 'triple-nested' : 'docker' %>
+      container_isolation: triple-nested
       ssh_auth: key-only

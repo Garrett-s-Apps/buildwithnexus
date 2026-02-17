@@ -93,6 +93,18 @@ export async function sshExec(port: number, command: string): Promise<{ stdout: 
   return { stdout: result.stdout, stderr: result.stderr, code: result.code ?? 0 };
 }
 
+export async function sshUploadFile(port: number, localPath: string, remotePath: string): Promise<void> {
+  const ssh = new NodeSSH();
+  await ssh.connect({
+    host: "localhost",
+    port,
+    username: "nexus",
+    privateKeyPath: SSH_KEY,
+  });
+  await ssh.putFile(localPath, remotePath);
+  ssh.dispose();
+}
+
 export async function openInteractiveSsh(port: number): Promise<void> {
   await execa("ssh", ["nexus-vm"], { stdio: "inherit" });
 }

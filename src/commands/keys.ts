@@ -1,0 +1,70 @@
+import { Command } from "commander";
+import { password, input } from "@inquirer/prompts";
+import chalk from "chalk";
+import { log } from "../ui/logger.js";
+import { loadKeys, saveKeys, maskKey } from "../core/secrets.js";
+
+export const keysCommand = new Command("keys")
+  .description("Manage API keys");
+
+keysCommand
+  .command("list")
+  .description("Show configured API keys (masked)")
+  .action(() => {
+    const keys = loadKeys();
+    if (!keys) {
+      log.error("No keys configured. Run: buildwithnexus init");
+      process.exit(1);
+    }
+
+    console.log(chalk.bold("\n  Configured Keys\n"));
+    for (const [name, value] of Object.entries(keys)) {
+      if (value) {
+        console.log(`  ${chalk.cyan(name.padEnd(24))} ${maskKey(value)}`);
+      }
+    }
+    console.log("");
+  });
+
+keysCommand
+  .command("set <key>")
+  .description("Set or update an API key (e.g. ANTHROPIC_API_KEY)")
+  .action(async (keyName: string) => {
+    const keys = loadKeys();
+    if (!keys) {
+      log.error("No keys configured. Run: buildwithnexus init");
+      process.exit(1);
+    }
+
+    const validKeys = [
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "GOOGLE_API_KEY",
+      "SLACK_BOT_TOKEN",
+      "SLACK_APP_TOKEN",
+      "SLACK_CHANNEL",
+      "NEXUS_MASTER_SECRET",
+    ];
+
+    const upper = keyName.toUpperCase();
+    if (!validKeys.includes(upper)) {
+      log.error(`Unknown key: ${keyName}`);
+      log.dim(`Valid keys: ${validKeys.join(", ")}`);
+      process.exit(1);
+    }
+
+    const isSecret = upper !== "SLACK_CHANNEL";
+    const value = isSecret
+      ? await password({ message: `Enter value for ${upper}:`, mask: "*" })
+      : await input({ message: `Enter value for ${upper}:` });
+
+    if (!value) {
+      log.warn("Empty value — key not changed");
+      return;
+    }
+
+    (keys as unknown as Record<string, string>)[upper] = value;
+    saveKeys(keys);
+    log.success(`${upper} updated`);
+    log.warn("Restart the runtime for changes to take effect: buildwithnexus stop && buildwithnexus start");
+  });

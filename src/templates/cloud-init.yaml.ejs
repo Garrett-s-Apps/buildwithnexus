@@ -1,0 +1,153 @@
+#cloud-config
+hostname: nexus-vm
+users:
+  - name: nexus
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - <%= sshPubKey %>
+
+package_update: true
+packages:
+  - docker.io
+  - docker-compose
+  - python3
+  - python3-pip
+  - python3-venv
+  - git
+  - curl
+  - wget
+  - jq
+  - tmux
+  - auditd
+  - ufw
+<% if (config.nestingLevel === 'advanced') { %>
+  - qemu-system-arm64
+  - libvirt-daemon
+  - libvirt-clients
+<% } %>
+
+runcmd:
+  # Security hardening
+  - ufw default deny incoming
+  - ufw default deny outgoing
+  - ufw allow 22/tcp
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw allow 4200/tcp
+  - ufw allow out 53
+  - ufw allow out 80/tcp
+  - ufw allow out 443/tcp
+  - ufw --force enable
+  - systemctl enable auditd
+  - systemctl start auditd
+
+  # SSH hardening
+  - sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+  - sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+  - systemctl restart ssh
+
+  # Docker setup
+  - usermod -aG docker nexus
+  - systemctl start docker
+  - systemctl enable docker
+
+  # Harden Docker daemon
+  - |
+    cat > /etc/docker/daemon.json << 'DAEMON'
+    {
+      "no-new-privileges": true,
+      "log-driver": "json-file",
+      "log-opts": { "max-size": "10m", "max-file": "3" },
+      "live-restore": true,
+      "userland-proxy": false
+    }
+    DAEMON
+  - systemctl restart docker
+
+<% if (config.nestingLevel === 'advanced') { %>
+  # KVM/libvirt for triple nesting
+  - systemctl start libvirtd
+  - systemctl enable libvirtd
+  - usermod -aG libvirt nexus
+<% } %>
+
+  # Clone NEXUS
+  - sudo -u nexus git clone --depth 1 https://github.com/Garrett-s-Apps/nexus.git /home/nexus/nexus
+
+  # Python environment
+  - sudo -u nexus python3 -m venv /home/nexus/nexus/.venv
+  - sudo -u nexus /home/nexus/nexus/.venv/bin/pip install --upgrade pip
+  - sudo -u nexus /home/nexus/nexus/.venv/bin/pip install -r /home/nexus/nexus/requirements.txt
+
+  # Build Docker sandbox image
+  - docker build -t nexus-cli-sandbox /home/nexus/nexus/docker/cli-sandbox/
+
+  # Generate database salt
+  - sudo -u nexus mkdir -p /home/nexus/.nexus
+  - sudo -u nexus python3 -c "import os; open('/home/nexus/.nexus/.db_salt','wb').write(os.urandom(16))"
+
+  # Create systemd unit
+  - |
+    cat > /etc/systemd/system/nexus.service << 'UNIT'
+    [Unit]
+    Description=NEXUS Autonomous Runtime
+    After=network.target docker.service
+    Requires=docker.service
+
+    [Service]
+    Type=simple
+    User=nexus
+    WorkingDirectory=/home/nexus/nexus
+    Environment=PATH=/home/nexus/nexus/.venv/bin:/usr/local/bin:/usr/bin:/bin
+    ExecStart=/home/nexus/nexus/.venv/bin/python -m src.main
+    Restart=on-failure
+    RestartSec=5
+    StandardOutput=append:/home/nexus/.nexus/logs/server.log
+    StandardError=append:/home/nexus/.nexus/logs/server.log
+    LimitNOFILE=2048
+    LimitNPROC=1024
+
+    [Install]
+    WantedBy=multi-user.target
+    UNIT
+
+  - sudo -u nexus mkdir -p /home/nexus/.nexus/logs
+  - systemctl daemon-reload
+  - systemctl enable nexus
+  - systemctl start nexus
+
+  # Signal completion
+  - echo "NEXUS cloud-init complete" > /var/log/nexus-init.log
+
+write_files:
+  - path: /home/nexus/.nexus/.env.keys
+    permissions: '0600'
+    owner: nexus:nexus
+    content: |
+      ANTHROPIC_API_KEY=<%= keys.ANTHROPIC_API_KEY %>
+<% if (keys.OPENAI_API_KEY) { %>
+      OPENAI_API_KEY=<%= keys.OPENAI_API_KEY %>
+<% } %>
+<% if (keys.GOOGLE_API_KEY) { %>
+      GOOGLE_API_KEY=<%= keys.GOOGLE_API_KEY %>
+<% } %>
+<% if (keys.SLACK_BOT_TOKEN) { %>
+      SLACK_BOT_TOKEN=<%= keys.SLACK_BOT_TOKEN %>
+<% } %>
+<% if (keys.SLACK_APP_TOKEN) { %>
+      SLACK_APP_TOKEN=<%= keys.SLACK_APP_TOKEN %>
+<% } %>
+<% if (keys.SLACK_CHANNEL) { %>
+      SLACK_CHANNEL=<%= keys.SLACK_CHANNEL %>
+<% } %>
+      NEXUS_MASTER_SECRET=<%= keys.NEXUS_MASTER_SECRET %>
+
+  - path: /home/nexus/.nexus/config.yaml
+    permissions: '0644'
+    owner: nexus:nexus
+    content: |
+      nested_vm_enabled: <%= config.nestingLevel === 'advanced' %>
+      orchestration_mode: autonomous
+      container_isolation: <%= config.nestingLevel === 'advanced' ? 'triple-nested' : 'docker' %>
+      ssh_auth: key-only

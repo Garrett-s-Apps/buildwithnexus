@@ -85,9 +85,6 @@ export const initCommand = new Command("init")
         ANTHROPIC_API_KEY: userConfig.anthropicKey,
         OPENAI_API_KEY: userConfig.openaiKey || undefined,
         GOOGLE_API_KEY: userConfig.googleKey || undefined,
-        SLACK_BOT_TOKEN: userConfig.slackBotToken || undefined,
-        SLACK_APP_TOKEN: userConfig.slackAppToken || undefined,
-        SLACK_CHANNEL: userConfig.slackChannel || undefined,
         NEXUS_MASTER_SECRET: masterSecret,
       };
 
@@ -211,9 +208,8 @@ export const initCommand = new Command("init")
       // Phase 10: Done
       showPhase(10, TOTAL_PHASES, "Complete");
       showCompletion({
-        dashboard: `http://localhost:${config.httpPort}/dashboard`,
         remote: tunnelUrl,
-        ssh: "ssh nexus-vm",
+        ssh: "buildwithnexus ssh",
       });
 
     } catch (err) {

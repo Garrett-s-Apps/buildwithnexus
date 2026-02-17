@@ -28,9 +28,14 @@ export const logsCommand = new Command("logs")
         `tail -f /home/nexus/.nexus/logs/server.log`,
       ], { stdio: "inherit" });
     } else {
+      const lines = /^\d+$/.test(opts.lines) ? parseInt(opts.lines, 10) : 50;
+      if (lines < 1 || lines > 10000) {
+        log.error("--lines must be between 1 and 10000");
+        process.exit(1);
+      }
       const { stdout } = await sshExec(
         config.sshPort,
-        `tail -n ${opts.lines} /home/nexus/.nexus/logs/server.log 2>/dev/null || echo "No logs yet"`,
+        `tail -n ${lines} /home/nexus/.nexus/logs/server.log 2>/dev/null || echo "No logs yet"`,
       );
       console.log(stdout);
     }

@@ -80,11 +80,19 @@ export async function launchVm(
   await execa(platform.qemuBinary, args);
 }
 
+function readValidPid(): number | null {
+  if (!fs.existsSync(PID_FILE)) return null;
+  const raw = fs.readFileSync(PID_FILE, "utf-8").trim();
+  const pid = parseInt(raw, 10);
+  if (!Number.isInteger(pid) || pid <= 1 || pid > 4194304) return null;
+  return pid;
+}
+
 export function isVmRunning(): boolean {
-  if (!fs.existsSync(PID_FILE)) return false;
-  const pid = fs.readFileSync(PID_FILE, "utf-8").trim();
+  const pid = readValidPid();
+  if (!pid) return false;
   try {
-    process.kill(Number(pid), 0);
+    process.kill(pid, 0);
     return true;
   } catch {
     return false;
@@ -92,10 +100,10 @@ export function isVmRunning(): boolean {
 }
 
 export function stopVm(): void {
-  if (!fs.existsSync(PID_FILE)) return;
-  const pid = fs.readFileSync(PID_FILE, "utf-8").trim();
+  const pid = readValidPid();
+  if (!pid) return;
   try {
-    process.kill(Number(pid), "SIGTERM");
+    process.kill(pid, "SIGTERM");
   } catch {
     // Already stopped
   }
@@ -103,6 +111,5 @@ export function stopVm(): void {
 }
 
 export function getVmPid(): number | null {
-  if (!fs.existsSync(PID_FILE)) return null;
-  return Number(fs.readFileSync(PID_FILE, "utf-8").trim());
+  return readValidPid();
 }

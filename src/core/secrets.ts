@@ -21,18 +21,15 @@ export interface NexusKeys {
   ANTHROPIC_API_KEY: string;
   OPENAI_API_KEY?: string;
   GOOGLE_API_KEY?: string;
-  SLACK_BOT_TOKEN?: string;
-  SLACK_APP_TOKEN?: string;
-  SLACK_CHANNEL?: string;
   NEXUS_MASTER_SECRET: string;
 }
 
 export function ensureHome(): void {
-  fs.mkdirSync(NEXUS_HOME, { recursive: true });
-  fs.mkdirSync(path.join(NEXUS_HOME, "vm", "images"), { recursive: true });
-  fs.mkdirSync(path.join(NEXUS_HOME, "vm", "configs"), { recursive: true });
-  fs.mkdirSync(path.join(NEXUS_HOME, "vm", "logs"), { recursive: true });
-  fs.mkdirSync(path.join(NEXUS_HOME, "ssh"), { recursive: true });
+  fs.mkdirSync(NEXUS_HOME, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(path.join(NEXUS_HOME, "vm", "images"), { recursive: true, mode: 0o700 });
+  fs.mkdirSync(path.join(NEXUS_HOME, "vm", "configs"), { recursive: true, mode: 0o700 });
+  fs.mkdirSync(path.join(NEXUS_HOME, "vm", "logs"), { recursive: true, mode: 0o700 });
+  fs.mkdirSync(path.join(NEXUS_HOME, "ssh"), { recursive: true, mode: 0o700 });
 }
 
 export function generateMasterSecret(): string {
@@ -40,7 +37,9 @@ export function generateMasterSecret(): string {
 }
 
 export function saveConfig(config: NexusConfig): void {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), { mode: 0o644 });
+  // Exclude masterSecret from config — it lives only in .env.keys (0o600)
+  const { masterSecret: _secret, ...safeConfig } = config;
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(safeConfig, null, 2), { mode: 0o600 });
 }
 
 export function loadConfig(): NexusConfig | null {

@@ -5,9 +5,6 @@ export interface InitConfig {
   anthropicKey: string;
   openaiKey: string;
   googleKey: string;
-  slackBotToken: string;
-  slackAppToken: string;
-  slackChannel: string;
   vmRam: number;
   vmCpus: number;
   vmDisk: number;
@@ -36,23 +33,6 @@ export async function promptInitConfig(): Promise<InitConfig> {
     message: "Google AI API key (optional, press Enter to skip):",
     mask: "*",
   });
-
-  console.log(chalk.bold("\n  Slack Integration (optional)\n"));
-
-  const slackBotToken = await input({
-    message: "Slack Bot Token (xoxb-..., Enter to skip):",
-  });
-
-  let slackAppToken = "";
-  let slackChannel = "";
-  if (slackBotToken) {
-    slackAppToken = await input({
-      message: "Slack App Token (xapp-...):",
-    });
-    slackChannel = await input({
-      message: "Slack Channel ID:",
-    });
-  }
 
   console.log(chalk.bold("\n  VM Resources\n"));
 
@@ -91,9 +71,6 @@ export async function promptInitConfig(): Promise<InitConfig> {
     anthropicKey,
     openaiKey,
     googleKey,
-    slackBotToken,
-    slackAppToken,
-    slackChannel,
     vmRam,
     vmCpus,
     vmDisk,

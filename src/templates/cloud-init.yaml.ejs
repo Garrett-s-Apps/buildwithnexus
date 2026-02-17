@@ -175,15 +175,6 @@ write_files:
 <% if (keys.GOOGLE_API_KEY) { %>
       GOOGLE_API_KEY=<%= keys.GOOGLE_API_KEY %>
 <% } %>
-<% if (keys.SLACK_BOT_TOKEN) { %>
-      SLACK_BOT_TOKEN=<%= keys.SLACK_BOT_TOKEN %>
-<% } %>
-<% if (keys.SLACK_APP_TOKEN) { %>
-      SLACK_APP_TOKEN=<%= keys.SLACK_APP_TOKEN %>
-<% } %>
-<% if (keys.SLACK_CHANNEL) { %>
-      SLACK_CHANNEL=<%= keys.SLACK_CHANNEL %>
-<% } %>
       NEXUS_MASTER_SECRET=<%= keys.NEXUS_MASTER_SECRET %>
 
   - path: /home/nexus/.nexus/config.yaml

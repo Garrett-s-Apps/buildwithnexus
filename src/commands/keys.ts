@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { password, input } from "@inquirer/prompts";
+import { password } from "@inquirer/prompts";
 import chalk from "chalk";
 import { log } from "../ui/logger.js";
 import { loadKeys, saveKeys, maskKey } from "../core/secrets.js";
@@ -40,9 +40,6 @@ keysCommand
       "ANTHROPIC_API_KEY",
       "OPENAI_API_KEY",
       "GOOGLE_API_KEY",
-      "SLACK_BOT_TOKEN",
-      "SLACK_APP_TOKEN",
-      "SLACK_CHANNEL",
       "NEXUS_MASTER_SECRET",
     ];
 
@@ -53,10 +50,7 @@ keysCommand
       process.exit(1);
     }
 
-    const isSecret = upper !== "SLACK_CHANNEL";
-    const value = isSecret
-      ? await password({ message: `Enter value for ${upper}:`, mask: "*" })
-      : await input({ message: `Enter value for ${upper}:` });
+    const value = await password({ message: `Enter value for ${upper}:`, mask: "*" });
 
     if (!value) {
       log.warn("Empty value — key not changed");

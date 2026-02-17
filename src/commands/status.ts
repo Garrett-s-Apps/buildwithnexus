@@ -36,6 +36,6 @@ export const statusCommand = new Command("status")
     console.log("");
 
     if (health.serverHealthy) {
-      log.success(`Dashboard: http://localhost:${config.httpPort}/dashboard`);
+      log.success(`NEXUS CLI ready — connect via: buildwithnexus ssh`);
     }
   });

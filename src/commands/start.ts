@@ -67,5 +67,5 @@ export const startCommand = new Command("start")
       }
     }
 
-    log.success(`Dashboard: http://localhost:${config.httpPort}/dashboard`);
+    log.success("NEXUS runtime ready — connect via: buildwithnexus ssh");
   });

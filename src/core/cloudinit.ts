@@ -23,7 +23,7 @@ export async function renderCloudInit(data: CloudInitData, templateContent: stri
 
 export async function createCloudInitIso(userDataPath: string): Promise<string> {
   const metaDataPath = path.join(CONFIGS_DIR, "meta-data.yaml");
-  fs.writeFileSync(metaDataPath, "instance-id: nexus-vm-1\nlocal-hostname: nexus-vm\n");
+  fs.writeFileSync(metaDataPath, "instance-id: nexus-vm-1\nlocal-hostname: nexus-vm\n", { mode: 0o600 });
 
   const isoPath = path.join(IMAGES_DIR, "init.iso");
 
@@ -45,6 +45,11 @@ export async function createCloudInitIso(userDataPath: string): Promise<string> 
       metaDataPath,
     ]);
   }
+
+  // Restrict ISO permissions and clean up plaintext key files
+  fs.chmodSync(isoPath, 0o600);
+  fs.unlinkSync(userDataPath);
+  fs.unlinkSync(metaDataPath);
 
   return isoPath;
 }

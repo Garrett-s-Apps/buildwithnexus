@@ -45,7 +45,6 @@ export function addSshConfig(port: number): void {
     `    IdentityFile ${SSH_KEY}`,
     "    StrictHostKeyChecking accept-new",
     `    UserKnownHostsFile ${KNOWN_HOSTS}`,
-    "    ForwardAgent yes",
     "    ServerAliveInterval 60",
     "",
   ].join("\n");

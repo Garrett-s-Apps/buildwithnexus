@@ -10,7 +10,7 @@ const BANNER = `
 
 export function showBanner(): void {
   console.log(BANNER);
-  console.log(chalk.dim("  v0.1.0 · buildwithnexus.dev\n"));
+  console.log(chalk.dim("  v0.2.0 · buildwithnexus.dev\n"));
 }
 
 export function showPhase(phase: number, total: number, description: string): void {

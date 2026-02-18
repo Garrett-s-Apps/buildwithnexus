@@ -4,7 +4,9 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { NEXUS_HOME } from "./secrets.js";
+
+// Compute locally to avoid circular dependency with secrets.ts
+const NEXUS_HOME = path.join(process.env.HOME || "~", ".buildwithnexus");
 
 // ═══════════════════════════════════════════════════════════════════
 // 1. SECRET PATTERNS — regex patterns for all known key formats

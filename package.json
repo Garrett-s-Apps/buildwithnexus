@@ -1,10 +1,10 @@
 {
   "name": "buildwithnexus",
   "version": "0.1.0",
-  "description": "Auto-scaffold and launch a fully autonomous NEXUS runtime with nested VM isolation",
+  "description": "Launch an autonomous AI runtime with triple-nested VM isolation in one command",
   "type": "module",
   "bin": {
-    "buildwithnexus": "./dist/bin.js"
+    "buildwithnexus": "dist/bin.js"
   },
   "files": [
     "dist/",

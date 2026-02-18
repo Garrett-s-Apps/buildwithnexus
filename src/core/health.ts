@@ -41,7 +41,7 @@ export async function checkHealth(port: number, vmRunning: boolean): Promise<Hea
 
   // Check tunnel
   try {
-    const { stdout } = await sshExec(port, "cat /tmp/tunnel-url.txt 2>/dev/null");
+    const { stdout } = await sshExec(port, "cat /home/nexus/.nexus/tunnel-url.txt 2>/dev/null");
     if (stdout.includes("https://")) {
       status.tunnelUrl = stdout.trim();
     }

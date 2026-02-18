@@ -86,5 +86,6 @@ export function loadKeys(): NexusKeys | null {
 
 export function maskKey(key: string): string {
   if (key.length <= 8) return "***";
-  return key.slice(0, 4) + "..." + key.slice(-4);
+  const reveal = Math.min(4, Math.floor(key.length * 0.1));
+  return key.slice(0, reveal) + "..." + key.slice(-reveal);
 }

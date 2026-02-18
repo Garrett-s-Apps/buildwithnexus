@@ -238,11 +238,13 @@ export function audit(event: AuditEvent, detail: string = ""): void {
         const rotated = AUDIT_PATH + ".1";
         if (fs.existsSync(rotated)) fs.unlinkSync(rotated);
         fs.renameSync(AUDIT_PATH, rotated);
+        try { fs.chmodSync(rotated, 0o600); } catch { /* best-effort */ }
       }
     }
 
     const line = `${new Date().toISOString()} | ${event} | ${redact(detail)}\n`;
     fs.appendFileSync(AUDIT_PATH, line, { mode: 0o600 });
+    try { fs.chmodSync(AUDIT_PATH, 0o600); } catch { /* best-effort */ }
   } catch {
     // Audit must never throw and break the CLI
   }
@@ -258,6 +260,13 @@ const SCRUB_KEYS = [
   "GOOGLE_API_KEY",
   "NEXUS_MASTER_SECRET",
   "NEXUS_SECRET",
+  "AWS_SECRET_ACCESS_KEY",
+  "AWS_SESSION_TOKEN",
+  "GITHUB_TOKEN",
+  "GH_TOKEN",
+  "NPM_TOKEN",
+  "DOCKER_PASSWORD",
+  "CI_JOB_TOKEN",
 ];
 
 /**

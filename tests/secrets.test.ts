@@ -7,10 +7,10 @@ import os from "node:os";
 // For secrets module, we test maskKey and the config/keys round-trip logic
 
 describe("maskKey", () => {
-  it("masks keys longer than 8 characters", async () => {
+  it("masks keys longer than 8 characters with proportional reveal", async () => {
     const { maskKey } = await import("../src/core/secrets.js");
-    const result = maskKey("sk-ant-api03-abcdefghijk");
-    expect(result).toBe("sk-a...hijk");
+    const result = maskKey("sk-ant-api03-abcdefghijk"); // 23 chars → reveal=2
+    expect(result).toBe("sk...jk");
     expect(result).not.toContain("api03");
   });
 
@@ -20,12 +20,15 @@ describe("maskKey", () => {
     expect(maskKey("12345678")).toBe("***");
   });
 
-  it("shows first 4 and last 4 chars", async () => {
+  it("reveals at most 10% of key length per side", async () => {
     const { maskKey } = await import("../src/core/secrets.js");
+    // 16 chars → reveal = floor(1.6) = 1
     const result = maskKey("abcdefghijklmnop");
-    expect(result.startsWith("abcd")).toBe(true);
-    expect(result.endsWith("mnop")).toBe(true);
-    expect(result).toContain("...");
+    expect(result).toBe("a...p");
+    // 80 chars → reveal = min(4, 8) = 4
+    const longKey = "a".repeat(80);
+    const longResult = maskKey(longKey);
+    expect(longResult).toBe("aaaa...aaaa");
   });
 });
 

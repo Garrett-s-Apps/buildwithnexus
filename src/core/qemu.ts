@@ -22,7 +22,7 @@ export async function isQemuInstalled(platform: PlatformInfo): Promise<boolean> 
 
 export async function installQemu(platform: PlatformInfo): Promise<void> {
   if (platform.os === "mac") {
-    await execa("brew", ["install", "qemu"], { stdio: "inherit", env: scrubEnv() });
+    await execa("brew", ["install", "qemu", "cdrtools"], { stdio: "inherit", env: scrubEnv() });
   } else if (platform.os === "linux") {
     try {
       await execa("sudo", ["apt-get", "update"], { stdio: "inherit", env: scrubEnv() });

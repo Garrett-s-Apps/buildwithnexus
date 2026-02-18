@@ -1,6 +1,9 @@
 # buildwithnexus
 
-Auto-scaffold and launch a fully autonomous NEXUS runtime with mandatory triple-nested VM isolation.
+[![npm version](https://img.shields.io/npm/v/buildwithnexus?style=flat-square&color=blue)](https://www.npmjs.com/package/buildwithnexus)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+
+Launch an autonomous AI runtime with triple-nested VM isolation in one command.
 
 ## What It Does
 
@@ -60,6 +63,15 @@ Port forwarding: SSH `localhost:2222`, NEXUS `localhost:4200`, HTTPS `localhost:
 
 ## Security
 
+Built-in DLP (Data Loss Prevention) layer protects every data path — zero dependencies, zero configuration:
+
+- **Input Sanitization** — YAML escaping and `shellCommand` tagged templates prevent injection
+- **Output Redaction** — API keys auto-redacted from logs, errors, and stdout
+- **Secret Validation** — format + injection character checks on all API keys at input
+- **File Integrity** — HMAC-SHA256 tamper detection on `.env.keys`
+- **Audit Trail** — every sensitive operation logged to `~/.buildwithnexus/audit.log`
+- **Environment Scrubbing** — child processes (QEMU, Docker, SSH) never inherit secrets
+- **SSH TOFU** — host key pinned on first connect, verified on every subsequent connection
 - SSH key-only auth (ed25519, no passwords)
 - UFW firewall (deny all, allow 22/80/443/4200)
 - auditd enabled (SOC 2 compliance)
@@ -67,6 +79,12 @@ Port forwarding: SSH `localhost:2222`, NEXUS `localhost:4200`, HTTPS `localhost:
 - API keys stored in `~/.buildwithnexus/.env.keys` with `0600` permissions
 - All directories created with `0700` permissions
 - Nesting enforcement guard prevents running outside VM isolation
+
+## Links
+
+- **npm:** [npmjs.com/package/buildwithnexus](https://www.npmjs.com/package/buildwithnexus)
+- **Docs:** [buildwithnexus.dev](https://buildwithnexus.dev)
+- **GitHub:** [github.com/Garrett-s-Apps/buildwithnexus](https://github.com/Garrett-s-Apps/buildwithnexus)
 
 ## License
 

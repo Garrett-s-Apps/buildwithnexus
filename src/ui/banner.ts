@@ -38,6 +38,7 @@ export function showCompletion(urls: { remote?: string; ssh: string }): void {
     chalk.green("  ║  ") + chalk.white("  buildwithnexus stop      - Shutdown".padEnd(55)) + chalk.green("║"),
     chalk.green("  ║  ") + chalk.white("  buildwithnexus start     - Restart".padEnd(55)) + chalk.green("║"),
     chalk.green("  ║  ") + chalk.white("  buildwithnexus update    - Update release".padEnd(55)) + chalk.green("║"),
+    chalk.green("  ║  ") + chalk.white("  buildwithnexus brainstorm - Brainstorm ideas".padEnd(55)) + chalk.green("║"),
     chalk.green("  ║  ") + chalk.white("  buildwithnexus destroy   - Remove all".padEnd(55)) + chalk.green("║"),
     chalk.green("  ╚══════════════════════════════════════════════════════════╝"),
     "",

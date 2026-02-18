@@ -48,6 +48,7 @@ QEMU is installed automatically if not present (`brew install qemu` on macOS, `a
 | `buildwithnexus destroy [--force]` | Remove VM + all data |
 | `buildwithnexus keys set\|list` | Manage API keys |
 | `buildwithnexus ssh` | Direct SSH into the VM |
+| `buildwithnexus brainstorm [idea]` | Brainstorm an idea with the Chief of Staff |
 
 ## Architecture
 

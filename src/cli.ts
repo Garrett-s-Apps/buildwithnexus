@@ -9,6 +9,7 @@ import { updateCommand } from "./commands/update.js";
 import { destroyCommand } from "./commands/destroy.js";
 import { keysCommand } from "./commands/keys.js";
 import { sshCommand } from "./commands/ssh.js";
+import { brainstormCommand } from "./commands/brainstorm.js";
 
 export const cli = new Command()
   .name("buildwithnexus")
@@ -25,6 +26,7 @@ cli.addCommand(updateCommand);
 cli.addCommand(destroyCommand);
 cli.addCommand(keysCommand);
 cli.addCommand(sshCommand);
+cli.addCommand(brainstormCommand);
 
 // Default action: show help
 cli.action(() => {

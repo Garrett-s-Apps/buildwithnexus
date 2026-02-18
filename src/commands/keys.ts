@@ -3,6 +3,7 @@ import { password } from "@inquirer/prompts";
 import chalk from "chalk";
 import { log } from "../ui/logger.js";
 import { loadKeys, saveKeys, maskKey } from "../core/secrets.js";
+import { validateKeyValue, DlpViolation, audit } from "../core/dlp.js";
 
 export const keysCommand = new Command("keys")
   .description("Manage API keys");
@@ -57,8 +58,19 @@ keysCommand
       return;
     }
 
+    try {
+      validateKeyValue(upper, value);
+    } catch (err) {
+      if (err instanceof DlpViolation) {
+        log.error(err.message);
+        process.exit(1);
+      }
+      throw err;
+    }
+
     (keys as unknown as Record<string, string>)[upper] = value;
     saveKeys(keys);
+    audit("keys_saved", `${upper} updated via CLI`);
     log.success(`${upper} updated`);
     log.warn("Restart the runtime for changes to take effect: buildwithnexus stop && buildwithnexus start");
   });

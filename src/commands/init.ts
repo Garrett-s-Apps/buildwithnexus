@@ -28,6 +28,7 @@ import { installCloudflared, startTunnel } from "../core/tunnel.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { redactError, validateAllKeys, DlpViolation } from "../core/dlp.js";
 
 function getReleaseTarball(): string {
   const dir = path.dirname(fileURLToPath(import.meta.url));
@@ -87,6 +88,12 @@ export const initCommand = new Command("init")
         GOOGLE_API_KEY: userConfig.googleKey || undefined,
         NEXUS_MASTER_SECRET: masterSecret,
       };
+
+      const violations = validateAllKeys(keys as unknown as Record<string, string | undefined>);
+      if (violations.length > 0) {
+        for (const v of violations) log.error(v);
+        process.exit(1);
+      }
 
       saveConfig(config);
       saveKeys(keys);
@@ -213,7 +220,8 @@ export const initCommand = new Command("init")
       });
 
     } catch (err) {
-      log.error(`Init failed: ${err instanceof Error ? err.message : String(err)}`);
+      const safeErr = redactError(err);
+      log.error(`Init failed: ${safeErr.message}`);
       process.exit(1);
     }
   });

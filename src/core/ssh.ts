@@ -3,6 +3,7 @@ import path from "node:path";
 import { execa } from "execa";
 import { NodeSSH } from "node-ssh";
 import { NEXUS_HOME } from "./secrets.js";
+import { audit, redact, scrubEnv } from "./dlp.js";
 
 const SSH_DIR = path.join(NEXUS_HOME, "ssh");
 const SSH_KEY = path.join(SSH_DIR, "id_nexus_vm");
@@ -26,7 +27,7 @@ export async function generateSshKey(): Promise<void> {
     "-N", "",
     "-C", "buildwithnexus@localhost",
     "-q",
-  ]);
+  ], { env: scrubEnv() });
   fs.chmodSync(SSH_KEY, 0o600);
   fs.chmodSync(SSH_PUB_KEY, 0o644);
 }
@@ -80,6 +81,7 @@ export async function waitForSsh(port: number, timeoutMs: number = 300_000): Pro
 }
 
 export async function sshExec(port: number, command: string): Promise<{ stdout: string; stderr: string; code: number }> {
+  audit("ssh_exec", redact(command));
   const ssh = new NodeSSH();
   await ssh.connect({
     host: "localhost",
@@ -105,5 +107,5 @@ export async function sshUploadFile(port: number, localPath: string, remotePath:
 }
 
 export async function openInteractiveSsh(port: number): Promise<void> {
-  await execa("ssh", ["nexus-vm"], { stdio: "inherit" });
+  await execa("ssh", ["nexus-vm"], { stdio: "inherit", env: scrubEnv() });
 }

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { validateAllKeys, sealKeysFile, verifyKeysFile, audit, DlpViolation } from "./dlp.js";
 
 export const NEXUS_HOME = path.join(process.env.HOME || "~", ".buildwithnexus");
 export const CONFIG_PATH = path.join(NEXUS_HOME, "config.json");
@@ -14,7 +15,7 @@ export interface NexusConfig {
   sshPort: number;
   httpPort: number;
   httpsPort: number;
-  masterSecret: string;
+  masterSecret?: string;
 }
 
 export interface NexusKeys {
@@ -48,10 +49,18 @@ export function loadConfig(): NexusConfig | null {
 }
 
 export function saveKeys(keys: NexusKeys): void {
+  const violations = validateAllKeys(keys as unknown as Record<string, string | undefined>);
+  if (violations.length > 0) {
+    throw new DlpViolation(`Key validation failed: ${violations.join("; ")}`);
+  }
+
   const lines = Object.entries(keys)
     .filter(([, v]) => v)
     .map(([k, v]) => `${k}=${v}`);
   fs.writeFileSync(KEYS_PATH, lines.join("\n") + "\n", { mode: 0o600 });
+
+  sealKeysFile(KEYS_PATH, keys.NEXUS_MASTER_SECRET);
+  audit("keys_saved", `${Object.keys(keys).filter((k) => (keys as unknown as Record<string, string>)[k]).length} keys saved`);
 }
 
 export function loadKeys(): NexusKeys | null {
@@ -62,7 +71,17 @@ export function loadKeys(): NexusKeys | null {
     const eq = line.indexOf("=");
     if (eq > 0) keys[line.slice(0, eq)] = line.slice(eq + 1);
   }
-  return keys as unknown as NexusKeys;
+  const result = keys as unknown as NexusKeys;
+
+  if (result.NEXUS_MASTER_SECRET && !verifyKeysFile(KEYS_PATH, result.NEXUS_MASTER_SECRET)) {
+    audit("keys_tampered", "HMAC mismatch on .env.keys");
+    throw new DlpViolation(
+      ".env.keys has been modified outside of buildwithnexus. " +
+      "Run 'buildwithnexus keys set' to re-enter your keys, or 'buildwithnexus destroy' to start fresh.",
+    );
+  }
+  audit("keys_loaded", `${Object.keys(keys).length} keys loaded`);
+  return result;
 }
 
 export function maskKey(key: string): string {

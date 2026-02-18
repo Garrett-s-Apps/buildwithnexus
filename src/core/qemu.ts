@@ -53,15 +53,23 @@ export async function createDisk(basePath: string, sizeGb: number): Promise<stri
   return diskPath;
 }
 
-function isPortFree(port: number): Promise<boolean> {
+function tryBind(port: number, host: string): Promise<boolean> {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.once("error", () => resolve(false));
     server.once("listening", () => {
       server.close(() => resolve(true));
     });
-    server.listen(port, "127.0.0.1");
+    server.listen(port, host);
   });
+}
+
+async function isPortFree(port: number): Promise<boolean> {
+  // Check both wildcard and loopback — a process on 0.0.0.0 blocks QEMU's hostfwd
+  const free0 = await tryBind(port, "0.0.0.0");
+  if (!free0) return false;
+  const free1 = await tryBind(port, "127.0.0.1");
+  return free1;
 }
 
 async function findFreePort(preferred: number, max = 20): Promise<number> {

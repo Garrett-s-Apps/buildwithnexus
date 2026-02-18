@@ -14,7 +14,7 @@ import { brainstormCommand } from "./commands/brainstorm.js";
 export const cli = new Command()
   .name("buildwithnexus")
   .description("Auto-scaffold and launch a fully autonomous NEXUS runtime")
-  .version("0.2.4");
+  .version("0.2.5");
 
 cli.addCommand(initCommand);
 cli.addCommand(startCommand);

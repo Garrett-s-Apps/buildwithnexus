@@ -18,7 +18,7 @@ export function detectPlatform(): PlatformInfo {
       os: "mac",
       arch: arch === "arm64" ? "arm64" : "x64",
       qemuBinary: "qemu-system-aarch64",
-      qemuCpuFlag: "-cpu host",
+      qemuCpuFlag: "-accel hvf -cpu host",
       ubuntuImage: "jammy-server-cloudimg-arm64.img",
       biosPath: "/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
     };

@@ -1,6 +1,6 @@
 {
   "name": "buildwithnexus",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Launch an autonomous AI runtime with triple-nested VM isolation in one command",
   "type": "module",
   "bin": {

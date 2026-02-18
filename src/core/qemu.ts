@@ -186,23 +186,31 @@ export async function launchVm(
   const machineArg = platform.os === "mac" ? "-machine virt,gic-version=3" : "-machine pc";
   const biosArgs = fs.existsSync(platform.biosPath) ? ["-bios", platform.biosPath] : [];
 
-  const args = [
-    ...machineArg.split(" "),
-    ...platform.qemuCpuFlag.split(" "),
-    "-m", `${ram}G`,
-    "-smp", `${cpus}`,
-    "-drive", `file=${diskPath},if=virtio,cache=writethrough`,
-    "-drive", `file=${initIsoPath},if=virtio,format=raw,cache=writethrough`,
-    "-display", "none",
-    "-serial", "none",
-    "-net", "nic,model=virtio",
-    "-net", `user,hostfwd=tcp::${ports.ssh}-:22,hostfwd=tcp::${ports.http}-:4200,hostfwd=tcp::${ports.https}-:443`,
-    ...biosArgs,
-    "-pidfile", PID_FILE,
-    "-daemonize",
-  ];
+  function buildArgs(cpuFlag: string): string[] {
+    return [
+      ...machineArg.split(" "),
+      ...cpuFlag.split(" "),
+      "-m", `${ram}G`,
+      "-smp", `${cpus}`,
+      "-drive", `file=${diskPath},if=virtio,cache=writethrough`,
+      "-drive", `file=${initIsoPath},if=virtio,format=raw,cache=writethrough`,
+      "-display", "none",
+      "-serial", "none",
+      "-net", "nic,model=virtio",
+      "-net", `user,hostfwd=tcp::${ports.ssh}-:22,hostfwd=tcp::${ports.http}-:4200,hostfwd=tcp::${ports.https}-:443`,
+      ...biosArgs,
+      "-pidfile", PID_FILE,
+      "-daemonize",
+    ];
+  }
 
-  await execa(platform.qemuBinary, args, { env: scrubEnv() });
+  // Try with HVF acceleration first, fall back to software emulation
+  try {
+    await execa(platform.qemuBinary, buildArgs(platform.qemuCpuFlag), { env: scrubEnv() });
+  } catch {
+    const fallbackCpu = platform.os === "mac" ? "-cpu max" : "-cpu qemu64";
+    await execa(platform.qemuBinary, buildArgs(fallbackCpu), { env: scrubEnv() });
+  }
   return ports;
 }
 

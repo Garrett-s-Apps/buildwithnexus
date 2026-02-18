@@ -53,6 +53,9 @@ export async function createDisk(basePath: string, sizeGb: number): Promise<stri
   return diskPath;
 }
 
+import { select } from "@inquirer/prompts";
+import chalk from "chalk";
+
 function tryBind(port: number, host: string): Promise<boolean> {
   return new Promise((resolve) => {
     const server = net.createServer();
@@ -65,17 +68,37 @@ function tryBind(port: number, host: string): Promise<boolean> {
 }
 
 async function isPortFree(port: number): Promise<boolean> {
-  // Check both wildcard and loopback — a process on 0.0.0.0 blocks QEMU's hostfwd
   const free0 = await tryBind(port, "0.0.0.0");
   if (!free0) return false;
   const free1 = await tryBind(port, "127.0.0.1");
   return free1;
 }
 
+interface PortBlocker {
+  port: number;
+  pid: number;
+  process: string;
+}
+
+async function getPortBlocker(port: number): Promise<PortBlocker | null> {
+  try {
+    const { stdout } = await execa("lsof", ["-i", `:${port}`, "-t", "-sTCP:LISTEN"], { env: scrubEnv() });
+    const pid = parseInt(stdout.trim().split("\n")[0], 10);
+    if (!pid) return null;
+    try {
+      const { stdout: psOut } = await execa("ps", ["-p", String(pid), "-o", "comm="], { env: scrubEnv() });
+      return { port, pid, process: psOut.trim() };
+    } catch {
+      return { port, pid, process: "unknown" };
+    }
+  } catch {
+    return null;
+  }
+}
+
 async function findFreePort(preferred: number, max = 20): Promise<number> {
   for (let offset = 0; offset < max; offset++) {
-    const port = preferred + offset;
-    if (await isPortFree(port)) return port;
+    if (await isPortFree(preferred + offset)) return preferred + offset;
   }
   throw new Error(`No free port found near ${preferred}`);
 }
@@ -86,20 +109,79 @@ export interface ResolvedPorts {
   https: number;
 }
 
+export async function resolvePortConflicts(
+  ports: { ssh: number; http: number; https: number },
+): Promise<ResolvedPorts> {
+  const labels: Record<string, string> = { ssh: "SSH", http: "HTTP", https: "HTTPS" };
+  const resolved = { ...ports };
+
+  for (const [key, port] of Object.entries(ports) as [keyof typeof ports, number][]) {
+    if (await isPortFree(port)) continue;
+
+    const blocker = await getPortBlocker(port);
+    const desc = blocker
+      ? `${blocker.process} (PID ${blocker.pid})`
+      : "unknown process";
+
+    const altPort = await findFreePort(port + 1).catch(() => null);
+
+    const choices: { name: string; value: string }[] = [];
+    if (blocker) {
+      choices.push({
+        name: `Kill ${desc} and use port ${port}`,
+        value: "kill",
+      });
+    }
+    if (altPort) {
+      choices.push({
+        name: `Use alternate port ${altPort} instead`,
+        value: "alt",
+      });
+    }
+    choices.push({ name: "Abort init", value: "abort" });
+
+    console.log("");
+    console.log(chalk.yellow(`  ⚠ Port ${port} (${labels[key]}) is in use by ${desc}`));
+
+    const action = await select({
+      message: `How would you like to resolve the ${labels[key]} port conflict?`,
+      choices,
+    });
+
+    if (action === "kill" && blocker) {
+      try {
+        process.kill(blocker.pid, "SIGTERM");
+        // Wait briefly for process to exit
+        await new Promise((r) => setTimeout(r, 1000));
+        if (!(await isPortFree(port))) {
+          process.kill(blocker.pid, "SIGKILL");
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        console.log(chalk.green(`  ✓ Killed ${desc}, port ${port} is now free`));
+      } catch {
+        console.log(chalk.red(`  ✗ Failed to kill PID ${blocker.pid}. Try: sudo kill ${blocker.pid}`));
+        process.exit(1);
+      }
+    } else if (action === "alt" && altPort) {
+      resolved[key] = altPort;
+      console.log(chalk.green(`  ✓ Using port ${altPort} for ${labels[key]}`));
+    } else {
+      console.log(chalk.dim("  Init aborted."));
+      process.exit(0);
+    }
+  }
+
+  return resolved;
+}
+
 export async function launchVm(
   platform: PlatformInfo,
   diskPath: string,
   initIsoPath: string,
   ram: number,
   cpus: number,
-  ports: { ssh: number; http: number; https: number },
+  ports: ResolvedPorts,
 ): Promise<ResolvedPorts> {
-  // Auto-find free ports if preferred ones are taken
-  const resolved: ResolvedPorts = {
-    ssh: await findFreePort(ports.ssh),
-    http: await findFreePort(ports.http),
-    https: await findFreePort(ports.https),
-  };
 
   const machineArg = platform.os === "mac" ? "-machine virt,gic-version=3" : "-machine pc";
   const biosArgs = fs.existsSync(platform.biosPath) ? ["-bios", platform.biosPath] : [];

@@ -19,6 +19,7 @@ import {
   downloadImage,
   createDisk,
   launchVm,
+  resolvePortConflicts,
   isVmRunning,
 } from "../core/qemu.js";
 import { generateSshKey, addSshConfig, waitForSsh, getPubKey, sshUploadFile } from "../core/ssh.js";
@@ -147,14 +148,19 @@ export const initCommand = new Command("init")
 
       // Phase 6: VM Boot
       showPhase(6, TOTAL_PHASES, "VM Launch");
+
+      // Check for port conflicts before starting the spinner (needs user input)
+      spinner = createSpinner("Checking port availability...");
+      spinner.start();
+      const requestedPorts = { ssh: config.sshPort, http: config.httpPort, https: config.httpsPort };
+      spinner.stop();
+      spinner.clear();
+      const resolvedPorts = await resolvePortConflicts(requestedPorts);
+
       spinner = createSpinner("Creating disk and launching VM...");
       spinner.start();
       const diskPath = await createDisk(imagePath, config.vmDisk);
-      const resolvedPorts = await launchVm(platform, diskPath, isoPath, config.vmRam, config.vmCpus, {
-        ssh: config.sshPort,
-        http: config.httpPort,
-        https: config.httpsPort,
-      });
+      await launchVm(platform, diskPath, isoPath, config.vmRam, config.vmCpus, resolvedPorts);
       // Update config with actual ports used (may differ if originals were busy)
       config.sshPort = resolvedPorts.ssh;
       config.httpPort = resolvedPorts.http;

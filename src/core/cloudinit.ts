@@ -43,7 +43,9 @@ export async function createCloudInitIso(userDataPath: string): Promise<string> 
 
   const env = scrubEnv();
 
-  // Try mkisofs first, then genisoimage
+  // Try mkisofs, then genisoimage, then macOS-native hdiutil
+  let created = false;
+
   try {
     await execa("mkisofs", [
       "-output", isoPath,
@@ -52,14 +54,48 @@ export async function createCloudInitIso(userDataPath: string): Promise<string> 
       userDataPath,
       metaDataPath,
     ], { env });
-  } catch {
-    await execa("genisoimage", [
-      "-output", isoPath,
-      "-volid", "cidata",
-      "-joliet", "-rock",
-      userDataPath,
-      metaDataPath,
-    ], { env });
+    created = true;
+  } catch { /* not available */ }
+
+  if (!created) {
+    try {
+      await execa("genisoimage", [
+        "-output", isoPath,
+        "-volid", "cidata",
+        "-joliet", "-rock",
+        userDataPath,
+        metaDataPath,
+      ], { env });
+      created = true;
+    } catch { /* not available */ }
+  }
+
+  // macOS fallback: hdiutil makehybrid (built-in, no Homebrew needed)
+  if (!created) {
+    try {
+      const stagingDir = path.join(CONFIGS_DIR, "cidata-staging");
+      fs.mkdirSync(stagingDir, { recursive: true, mode: 0o700 });
+      fs.copyFileSync(userDataPath, path.join(stagingDir, "user-data"));
+      fs.copyFileSync(metaDataPath, path.join(stagingDir, "meta-data"));
+      await execa("hdiutil", [
+        "makehybrid",
+        "-o", isoPath,
+        "-joliet",
+        "-iso",
+        "-default-volume-name", "cidata",
+        stagingDir,
+      ], { env });
+      fs.rmSync(stagingDir, { recursive: true, force: true });
+      created = true;
+    } catch { /* not available */ }
+  }
+
+  if (!created) {
+    throw new Error(
+      "Cannot create cloud-init ISO: none of mkisofs, genisoimage, or hdiutil are available. " +
+      "On macOS, install cdrtools: brew install cdrtools. " +
+      "On Linux: sudo apt install genisoimage",
+    );
   }
 
   // Restrict ISO permissions and clean up plaintext key files

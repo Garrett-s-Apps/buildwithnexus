@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { execa } from "execa";
 import type { PlatformInfo } from "./platform.js";
@@ -52,6 +53,31 @@ export async function createDisk(basePath: string, sizeGb: number): Promise<stri
   return diskPath;
 }
 
+function isPortFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(false));
+    server.once("listening", () => {
+      server.close(() => resolve(true));
+    });
+    server.listen(port, "127.0.0.1");
+  });
+}
+
+async function findFreePort(preferred: number, max = 20): Promise<number> {
+  for (let offset = 0; offset < max; offset++) {
+    const port = preferred + offset;
+    if (await isPortFree(port)) return port;
+  }
+  throw new Error(`No free port found near ${preferred}`);
+}
+
+export interface ResolvedPorts {
+  ssh: number;
+  http: number;
+  https: number;
+}
+
 export async function launchVm(
   platform: PlatformInfo,
   diskPath: string,
@@ -59,7 +85,14 @@ export async function launchVm(
   ram: number,
   cpus: number,
   ports: { ssh: number; http: number; https: number },
-): Promise<void> {
+): Promise<ResolvedPorts> {
+  // Auto-find free ports if preferred ones are taken
+  const resolved: ResolvedPorts = {
+    ssh: await findFreePort(ports.ssh),
+    http: await findFreePort(ports.http),
+    https: await findFreePort(ports.https),
+  };
+
   const machineArg = platform.os === "mac" ? "-machine virt,gic-version=3" : "-machine pc";
   const biosArgs = fs.existsSync(platform.biosPath) ? ["-bios", platform.biosPath] : [];
 
@@ -69,17 +102,18 @@ export async function launchVm(
     "-m", `${ram}G`,
     "-smp", `${cpus}`,
     "-drive", `file=${diskPath},if=virtio,cache=writethrough`,
-    "-drive", `file=${initIsoPath},if=virtio,cache=writethrough`,
+    "-drive", `file=${initIsoPath},if=virtio,format=raw,cache=writethrough`,
     "-display", "none",
     "-serial", "none",
     "-net", "nic,model=virtio",
-    "-net", `user,hostfwd=tcp::${ports.ssh}-:22,hostfwd=tcp::${ports.http}-:4200,hostfwd=tcp::${ports.https}-:443`,
+    "-net", `user,hostfwd=tcp::${resolved.ssh}-:22,hostfwd=tcp::${resolved.http}-:4200,hostfwd=tcp::${resolved.https}-:443`,
     ...biosArgs,
     "-pidfile", PID_FILE,
     "-daemonize",
   ];
 
   await execa(platform.qemuBinary, args, { env: scrubEnv() });
+  return resolved;
 }
 
 function readValidPid(): number | null {

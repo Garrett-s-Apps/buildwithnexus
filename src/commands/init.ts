@@ -150,12 +150,20 @@ export const initCommand = new Command("init")
       spinner = createSpinner("Creating disk and launching VM...");
       spinner.start();
       const diskPath = await createDisk(imagePath, config.vmDisk);
-      await launchVm(platform, diskPath, isoPath, config.vmRam, config.vmCpus, {
+      const resolvedPorts = await launchVm(platform, diskPath, isoPath, config.vmRam, config.vmCpus, {
         ssh: config.sshPort,
         http: config.httpPort,
         https: config.httpsPort,
       });
-      succeed(spinner, "VM launched (daemonized)");
+      // Update config with actual ports used (may differ if originals were busy)
+      config.sshPort = resolvedPorts.ssh;
+      config.httpPort = resolvedPorts.http;
+      config.httpsPort = resolvedPorts.https;
+      saveConfig(config);
+      const portNote = (resolvedPorts.ssh !== 2222 || resolvedPorts.http !== 4200 || resolvedPorts.https !== 8443)
+        ? ` (ports: SSH=${resolvedPorts.ssh}, HTTP=${resolvedPorts.http}, HTTPS=${resolvedPorts.https})`
+        : "";
+      succeed(spinner, `VM launched (daemonized)${portNote}`);
 
       // Phase 7: Cloud-Init Provisioning
       showPhase(7, TOTAL_PHASES, "VM Provisioning");

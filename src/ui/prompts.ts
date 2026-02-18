@@ -1,5 +1,6 @@
 import { input, confirm, password } from "@inquirer/prompts";
 import chalk from "chalk";
+import { validateKeyValue, DlpViolation } from "../core/dlp.js";
 
 export interface InitConfig {
   anthropicKey: string;
@@ -20,6 +21,11 @@ export async function promptInitConfig(): Promise<InitConfig> {
     validate: (val) => {
       if (!val) return "API key is required";
       if (!val.startsWith("sk-ant-")) return "Must start with sk-ant-";
+      try {
+        validateKeyValue("ANTHROPIC_API_KEY", val);
+      } catch (err) {
+        if (err instanceof DlpViolation) return err.message;
+      }
       return true;
     },
   });

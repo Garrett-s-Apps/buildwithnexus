@@ -1,4 +1,5 @@
 import { sshExec } from "./ssh.js";
+import { shellCommand, audit } from "./dlp.js";
 
 const CLOUDFLARED_VERSION = "2024.12.2";
 const CLOUDFLARED_SHA256: Record<string, string> = {
@@ -37,7 +38,8 @@ export async function startTunnel(sshPort: number): Promise<string | null> {
         if (!/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(url)) {
           return null;
         }
-        await sshExec(sshPort, `printf '%s\\n' '${url}' > /tmp/tunnel-url.txt`);
+        await sshExec(sshPort, shellCommand`printf '%s\n' ${url} > /tmp/tunnel-url.txt`);
+        audit("tunnel_url_captured", url);
         return url;
       }
     } catch { /* not ready */ }

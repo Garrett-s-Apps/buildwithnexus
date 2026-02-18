@@ -4,6 +4,7 @@ import { loadConfig } from "../core/secrets.js";
 import { isVmRunning } from "../core/qemu.js";
 import { sshExec } from "../core/ssh.js";
 import { execa } from "execa";
+import { redact, scrubEnv } from "../core/dlp.js";
 
 export const logsCommand = new Command("logs")
   .description("View NEXUS server logs")
@@ -26,7 +27,7 @@ export const logsCommand = new Command("logs")
       await execa("ssh", [
         "nexus-vm",
         `tail -f /home/nexus/.nexus/logs/server.log`,
-      ], { stdio: "inherit" });
+      ], { stdio: "inherit", env: scrubEnv() });
     } else {
       const lines = /^\d+$/.test(opts.lines) ? parseInt(opts.lines, 10) : 50;
       if (lines < 1 || lines > 10000) {
@@ -37,6 +38,6 @@ export const logsCommand = new Command("logs")
         config.sshPort,
         `tail -n ${lines} /home/nexus/.nexus/logs/server.log 2>/dev/null || echo "No logs yet"`,
       );
-      console.log(stdout);
+      console.log(redact(stdout));
     }
   });

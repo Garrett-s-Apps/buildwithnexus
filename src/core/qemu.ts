@@ -3,6 +3,7 @@ import path from "node:path";
 import { execa } from "execa";
 import type { PlatformInfo } from "./platform.js";
 import { NEXUS_HOME } from "./secrets.js";
+import { scrubEnv } from "./dlp.js";
 
 const VM_DIR = path.join(NEXUS_HOME, "vm");
 const IMAGES_DIR = path.join(VM_DIR, "images");
@@ -12,7 +13,7 @@ const UBUNTU_BASE_URL = "https://cloud-images.ubuntu.com/jammy/current";
 
 export async function isQemuInstalled(platform: PlatformInfo): Promise<boolean> {
   try {
-    await execa(platform.qemuBinary, ["--version"]);
+    await execa(platform.qemuBinary, ["--version"], { env: scrubEnv() });
     return true;
   } catch {
     return false;
@@ -21,13 +22,13 @@ export async function isQemuInstalled(platform: PlatformInfo): Promise<boolean> 
 
 export async function installQemu(platform: PlatformInfo): Promise<void> {
   if (platform.os === "mac") {
-    await execa("brew", ["install", "qemu"], { stdio: "inherit" });
+    await execa("brew", ["install", "qemu"], { stdio: "inherit", env: scrubEnv() });
   } else if (platform.os === "linux") {
     try {
-      await execa("sudo", ["apt-get", "update"], { stdio: "inherit" });
-      await execa("sudo", ["apt-get", "install", "-y", "qemu-system", "qemu-utils", "genisoimage"], { stdio: "inherit" });
+      await execa("sudo", ["apt-get", "update"], { stdio: "inherit", env: scrubEnv() });
+      await execa("sudo", ["apt-get", "install", "-y", "qemu-system", "qemu-utils", "genisoimage"], { stdio: "inherit", env: scrubEnv() });
     } catch {
-      await execa("sudo", ["yum", "install", "-y", "qemu-system-arm", "qemu-system-x86", "qemu-img", "genisoimage"], { stdio: "inherit" });
+      await execa("sudo", ["yum", "install", "-y", "qemu-system-arm", "qemu-system-x86", "qemu-img", "genisoimage"], { stdio: "inherit", env: scrubEnv() });
     }
   } else {
     throw new Error("Windows: Please install QEMU manually from https://www.qemu.org/download/#windows");
@@ -39,7 +40,7 @@ export async function downloadImage(platform: PlatformInfo): Promise<string> {
   if (fs.existsSync(imagePath)) return imagePath;
 
   const url = `${UBUNTU_BASE_URL}/${platform.ubuntuImage}`;
-  await execa("curl", ["-L", "-o", imagePath, "--progress-bar", url], { stdio: "inherit" });
+  await execa("curl", ["-L", "-o", imagePath, "--progress-bar", url], { stdio: "inherit", env: scrubEnv() });
   return imagePath;
 }
 
@@ -47,7 +48,7 @@ export async function createDisk(basePath: string, sizeGb: number): Promise<stri
   const diskPath = path.join(IMAGES_DIR, "nexus-vm-disk.qcow2");
   if (fs.existsSync(diskPath)) return diskPath;
 
-  await execa("qemu-img", ["create", "-f", "qcow2", "-b", basePath, "-F", "qcow2", diskPath, `${sizeGb}G`]);
+  await execa("qemu-img", ["create", "-f", "qcow2", "-b", basePath, "-F", "qcow2", diskPath, `${sizeGb}G`], { env: scrubEnv() });
   return diskPath;
 }
 
@@ -77,7 +78,7 @@ export async function launchVm(
     "-daemonize",
   ];
 
-  await execa(platform.qemuBinary, args);
+  await execa(platform.qemuBinary, args, { env: scrubEnv() });
 }
 
 function readValidPid(): number | null {

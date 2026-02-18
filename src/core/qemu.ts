@@ -196,14 +196,14 @@ export async function launchVm(
     "-display", "none",
     "-serial", "none",
     "-net", "nic,model=virtio",
-    "-net", `user,hostfwd=tcp::${resolved.ssh}-:22,hostfwd=tcp::${resolved.http}-:4200,hostfwd=tcp::${resolved.https}-:443`,
+    "-net", `user,hostfwd=tcp::${ports.ssh}-:22,hostfwd=tcp::${ports.http}-:4200,hostfwd=tcp::${ports.https}-:443`,
     ...biosArgs,
     "-pidfile", PID_FILE,
     "-daemonize",
   ];
 
   await execa(platform.qemuBinary, args, { env: scrubEnv() });
-  return resolved;
+  return ports;
 }
 
 function readValidPid(): number | null {

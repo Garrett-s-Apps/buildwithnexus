@@ -113,7 +113,7 @@ export async function sshExec(port: number, command: string): Promise<{ stdout: 
   });
   const result = await ssh.execCommand(command);
   ssh.dispose();
-  return { stdout: result.stdout, stderr: result.stderr, code: result.code ?? 0 };
+  return { stdout: redact(result.stdout), stderr: redact(result.stderr), code: result.code ?? 0 };
 }
 
 export async function sshUploadFile(port: number, localPath: string, remotePath: string): Promise<void> {

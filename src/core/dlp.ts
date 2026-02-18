@@ -181,11 +181,15 @@ export function sealKeysFile(keysPath: string, masterSecret: string): void {
 }
 
 /**
- * Verify HMAC seal of .env.keys. Returns true if valid or if no
- * seal exists yet (first run). Returns false if tampered.
+ * Verify HMAC seal of .env.keys. Returns true if valid or if neither
+ * file exists yet (genuine first run). Returns false if tampered or
+ * if keys exist without a seal (seal was deleted).
  */
 export function verifyKeysFile(keysPath: string, masterSecret: string): boolean {
-  if (!fs.existsSync(HMAC_PATH)) return true;
+  const keysExist = fs.existsSync(keysPath);
+  const hmacExist = fs.existsSync(HMAC_PATH);
+  if (!keysExist && !hmacExist) return true;
+  if (keysExist && !hmacExist) return false;
   try {
     const stored = fs.readFileSync(HMAC_PATH, "utf-8").trim();
     const computed = computeFileHmac(keysPath, masterSecret);

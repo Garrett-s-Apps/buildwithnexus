@@ -369,11 +369,17 @@ describe("sealKeysFile / verifyKeysFile", () => {
     expect(verifyKeysFile(keysPath, "master-secret-test")).toBe(false);
   });
 
-  it("verify returns true when no seal exists (first run)", () => {
-    fs.writeFileSync(keysPath, "ANTHROPIC_API_KEY=sk-ant-test123\n");
-    // Remove HMAC file if it exists
+  it("verify returns true when neither keys nor seal exist (genuine first run)", () => {
+    // Remove both files to simulate genuine first run
+    if (fs.existsSync(keysPath)) fs.unlinkSync(keysPath);
     if (fs.existsSync(hmacPath)) fs.unlinkSync(hmacPath);
     expect(verifyKeysFile(keysPath, "any-secret")).toBe(true);
+  });
+
+  it("verify returns false when keys exist but seal is missing (tamper)", () => {
+    fs.writeFileSync(keysPath, "ANTHROPIC_API_KEY=sk-ant-test123\n");
+    if (fs.existsSync(hmacPath)) fs.unlinkSync(hmacPath);
+    expect(verifyKeysFile(keysPath, "any-secret")).toBe(false);
   });
 });
 

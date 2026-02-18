@@ -33,11 +33,25 @@ export async function promptInitConfig(): Promise<InitConfig> {
   const openaiKey = await password({
     message: "OpenAI API key (optional, press Enter to skip):",
     mask: "*",
+    validate: (val) => {
+      if (!val) return true;
+      try { validateKeyValue("OPENAI_API_KEY", val); } catch (err) {
+        if (err instanceof DlpViolation) return err.message;
+      }
+      return true;
+    },
   });
 
   const googleKey = await password({
     message: "Google AI API key (optional, press Enter to skip):",
     mask: "*",
+    validate: (val) => {
+      if (!val) return true;
+      try { validateKeyValue("GOOGLE_API_KEY", val); } catch (err) {
+        if (err instanceof DlpViolation) return err.message;
+      }
+      return true;
+    },
   });
 
   console.log(chalk.bold("\n  VM Resources\n"));
@@ -46,7 +60,11 @@ export async function promptInitConfig(): Promise<InitConfig> {
     await input({
       message: "VM RAM in GB:",
       default: "4",
-      validate: (v) => (Number(v) >= 2 ? true : "Minimum 2GB"),
+      validate: (v) => {
+        const n = Number(v);
+        if (!Number.isInteger(n) || n < 2 || n > 256) return "Must be a whole number between 2 and 256";
+        return true;
+      },
     })
   );
 
@@ -54,7 +72,11 @@ export async function promptInitConfig(): Promise<InitConfig> {
     await input({
       message: "VM CPUs:",
       default: "2",
-      validate: (v) => (Number(v) >= 1 ? true : "Minimum 1 CPU"),
+      validate: (v) => {
+        const n = Number(v);
+        if (!Number.isInteger(n) || n < 1 || n > 64) return "Must be a whole number between 1 and 64";
+        return true;
+      },
     })
   );
 
@@ -62,7 +84,11 @@ export async function promptInitConfig(): Promise<InitConfig> {
     await input({
       message: "VM Disk in GB:",
       default: "20",
-      validate: (v) => (Number(v) >= 10 ? true : "Minimum 10GB"),
+      validate: (v) => {
+        const n = Number(v);
+        if (!Number.isInteger(n) || n < 10 || n > 2048) return "Must be a whole number between 10 and 2048";
+        return true;
+      },
     })
   );
 

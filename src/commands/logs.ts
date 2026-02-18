@@ -23,11 +23,14 @@ export const logsCommand = new Command("logs")
     }
 
     if (opts.follow) {
-      // Interactive tail -f via system SSH
-      await execa("ssh", [
+      // Stream tail -f through redaction filter
+      const proc = execa("ssh", [
         "nexus-vm",
-        `tail -f /home/nexus/.nexus/logs/server.log`,
-      ], { stdio: "inherit", env: scrubEnv() });
+        "tail -f /home/nexus/.nexus/logs/server.log",
+      ], { stdout: "pipe", stderr: "pipe", env: scrubEnv() });
+      proc.stdout?.on("data", (chunk: Buffer) => process.stdout.write(redact(chunk.toString())));
+      proc.stderr?.on("data", (chunk: Buffer) => process.stderr.write(redact(chunk.toString())));
+      await proc;
     } else {
       const lines = /^\d+$/.test(opts.lines) ? parseInt(opts.lines, 10) : 50;
       if (lines < 1 || lines > 10000) {

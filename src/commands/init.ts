@@ -182,12 +182,16 @@ export const initCommand = new Command("init")
         .join("\n") + "\n";
       const tmpKeysPath = path.join(os.tmpdir(), `.nexus-keys-${crypto.randomBytes(8).toString("hex")}`);
       fs.writeFileSync(tmpKeysPath, keysContent, { mode: 0o600 });
-      await sshExec(config.sshPort, "sudo -u nexus mkdir -p /home/nexus/.nexus");
-      await sshUploadFile(config.sshPort, tmpKeysPath, "/home/nexus/.nexus/.env.keys");
-      await sshExec(config.sshPort, "chown nexus:nexus /home/nexus/.nexus/.env.keys && chmod 600 /home/nexus/.nexus/.env.keys");
-      // Overwrite local temp file before deleting
-      fs.writeFileSync(tmpKeysPath, "0".repeat(keysContent.length));
-      fs.unlinkSync(tmpKeysPath);
+      try {
+        await sshExec(config.sshPort, "sudo -u nexus mkdir -p /home/nexus/.nexus");
+        await sshUploadFile(config.sshPort, tmpKeysPath, "/home/nexus/.nexus/.env.keys");
+        await sshExec(config.sshPort, "chown nexus:nexus /home/nexus/.nexus/.env.keys && chmod 600 /home/nexus/.nexus/.env.keys");
+      } finally {
+        try {
+          fs.writeFileSync(tmpKeysPath, "0".repeat(keysContent.length));
+          fs.unlinkSync(tmpKeysPath);
+        } catch { /* best-effort cleanup */ }
+      }
       succeed(spinner, "API keys delivered securely via SSH");
 
       spinner = createSpinner("Cloud-init provisioning (extracting NEXUS, building Docker, installing deps)...");

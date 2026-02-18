@@ -8,7 +8,7 @@ export default defineConfig({
   outDir: "dist",
   clean: true,
   splitting: false,
-  sourcemap: true,
+  sourcemap: false,
   dts: false,
   // Don't bundle dependencies — they have CJS internals that break ESM bundling
   external: [

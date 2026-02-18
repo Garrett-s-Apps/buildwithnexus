@@ -14,7 +14,7 @@ export interface NexusConfig {
   sshPort: number;
   httpPort: number;
   httpsPort: number;
-  masterSecret: string;
+  masterSecret?: string;
 }
 
 export interface NexusKeys {

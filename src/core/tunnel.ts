@@ -2,8 +2,8 @@ import { sshExec } from "./ssh.js";
 
 const CLOUDFLARED_VERSION = "2024.12.2";
 const CLOUDFLARED_SHA256: Record<string, string> = {
-  amd64: "5573e20e09fb00a47fb3d2b9e0c8a0f9a3e5d4a7b6c1d2e3f4a5b6c7d8e9f0a1",
-  arm64: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+  amd64: "40ec9a0f5b58e3b04183aaf01c4ddd4dbc6af39b0f06be4b7ce8b1011d0a07ab",
+  arm64: "5a6c5881743fc84686f23048940ec844848c0f20363e8f76a99bc47e19777de6",
 };
 
 export async function installCloudflared(sshPort: number, arch: "arm64" | "x64"): Promise<void> {

@@ -1,0 +1,73 @@
+# buildwithnexus
+
+Auto-scaffold and launch a fully autonomous NEXUS runtime with mandatory triple-nested VM isolation.
+
+## What It Does
+
+One command bootstraps a complete NEXUS instance:
+
+- **QEMU VM** running Ubuntu 24.04 (auto-installed if missing)
+- **Docker** inside the VM for isolated CLI sessions
+- **KVM** inside the VM for inner virtual machines (triple nesting)
+- **NEXUS server** running on port 4200 with full agent orchestration
+- **Cloudflare tunnel** (optional) for remote access
+
+All isolation is mandatory — NEXUS refuses to start unless it detects proper nesting (VM + Docker + KVM).
+
+## Quick Start
+
+```bash
+npx buildwithnexus init
+```
+
+This walks you through API key setup, VM resource allocation, and boots a fully provisioned NEXUS instance in ~10-25 minutes (first run). Subsequent starts take ~30 seconds.
+
+## Requirements
+
+- **Node.js** >= 18
+- **macOS** (ARM or Intel) or **Linux** (x64)
+- ~4GB RAM and ~20GB disk available for the VM
+- An Anthropic API key
+
+QEMU is installed automatically if not present (`brew install qemu` on macOS, `apt install qemu-system` on Linux).
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `buildwithnexus init` | Full scaffolding + VM boot (10 phases) |
+| `buildwithnexus start` | Start an existing VM + server |
+| `buildwithnexus stop` | Graceful shutdown |
+| `buildwithnexus status` | VM / Docker / server / tunnel health |
+| `buildwithnexus doctor` | Diagnose QEMU, ports, SSH, disk |
+| `buildwithnexus logs [-f]` | Stream server logs |
+| `buildwithnexus update` | Upload latest release, rebuild, restart |
+| `buildwithnexus destroy [--force]` | Remove VM + all data |
+| `buildwithnexus keys set\|list` | Manage API keys |
+| `buildwithnexus ssh` | Direct SSH into the VM |
+
+## Architecture
+
+```
+Host (your machine)
+  └─ QEMU VM (Ubuntu 24.04)
+       ├─ Docker (nexus-cli-sandbox)
+       ├─ KVM / libvirt (inner VMs)
+       └─ NEXUS server (:4200)
+```
+
+Port forwarding: SSH `localhost:2222`, NEXUS `localhost:4200`, HTTPS `localhost:8443`.
+
+## Security
+
+- SSH key-only auth (ed25519, no passwords)
+- UFW firewall (deny all, allow 22/80/443/4200)
+- auditd enabled (SOC 2 compliance)
+- Docker hardened (no-new-privileges, log rotation, cap-drop ALL)
+- API keys stored in `~/.buildwithnexus/.env.keys` with `0600` permissions
+- All directories created with `0700` permissions
+- Nesting enforcement guard prevents running outside VM isolation
+
+## License
+
+MIT

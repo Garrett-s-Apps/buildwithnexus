@@ -28,11 +28,35 @@ This walks you through API key setup, VM resource allocation, and boots a fully 
 ## Requirements
 
 - **Node.js** >= 18
-- **macOS** (ARM or Intel) or **Linux** (x64)
 - ~4GB RAM and ~20GB disk available for the VM
 - An Anthropic API key
 
-QEMU is installed automatically if not present (`brew install qemu` on macOS, `apt install qemu-system` on Linux).
+### macOS (ARM or Intel)
+
+QEMU is installed automatically via Homebrew. If Homebrew isn't installed, get it at [brew.sh](https://brew.sh).
+
+```bash
+npx buildwithnexus init
+```
+
+### Linux (x64)
+
+QEMU is installed automatically via apt. Requires `sudo` access for package installation.
+
+```bash
+npx buildwithnexus init
+```
+
+### Windows (via WSL2)
+
+buildwithnexus requires WSL2 with an Ubuntu distribution. Native Windows is not supported.
+
+1. Install WSL2: `wsl --install -d Ubuntu`
+2. Open Ubuntu terminal
+3. Install Node.js: `curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs`
+4. Run: `npx buildwithnexus init`
+
+KVM nested virtualization must be enabled in your BIOS/UEFI settings.
 
 ## Commands
 

@@ -1,5 +1,5 @@
 import { defineConfig } from "tsup";
-import { writeFileSync, readFileSync, chmodSync } from "node:fs";
+import { writeFileSync, readFileSync, chmodSync, mkdirSync, copyFileSync } from "node:fs";
 
 export default defineConfig({
   entry: ["src/bin.ts"],
@@ -20,5 +20,9 @@ export default defineConfig({
     const content = readFileSync(file, "utf-8");
     writeFileSync(file, "#!/usr/bin/env node\n" + content);
     chmodSync(file, 0o755);
+
+    // Copy non-TS assets that init needs at runtime
+    mkdirSync("dist/templates", { recursive: true });
+    copyFileSync("src/templates/cloud-init.yaml.ejs", "dist/templates/cloud-init.yaml.ejs");
   },
 });

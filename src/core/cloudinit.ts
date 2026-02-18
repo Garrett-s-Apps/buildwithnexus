@@ -4,7 +4,7 @@ import ejs from "ejs";
 import { execa } from "execa";
 import { NEXUS_HOME } from "./secrets.js";
 import type { NexusConfig, NexusKeys } from "./secrets.js";
-import { yamlEscape, audit, scrubEnv } from "./dlp.js";
+import { yamlEscape, audit, scrubEnv, DlpViolation } from "./dlp.js";
 
 const CONFIGS_DIR = path.join(NEXUS_HOME, "vm", "configs");
 const IMAGES_DIR = path.join(NEXUS_HOME, "vm", "images");
@@ -16,11 +16,17 @@ interface CloudInitData {
 }
 
 export async function renderCloudInit(data: CloudInitData, templateContent: string): Promise<string> {
+  // Validate SSH public key format before embedding in YAML
+  const trimmedPubKey = data.sshPubKey.trim();
+  if (!/^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp\d+) [A-Za-z0-9+/=]+ ?\S*$/.test(trimmedPubKey)) {
+    throw new DlpViolation("SSH public key has unexpected format — possible injection attempt");
+  }
+
   const safeKeys: Record<string, string> = {};
   for (const [k, v] of Object.entries(data.keys)) {
     if (v) safeKeys[k] = yamlEscape(v as string);
   }
-  const safeData = { ...data, keys: safeKeys };
+  const safeData = { ...data, sshPubKey: yamlEscape(trimmedPubKey), keys: safeKeys };
 
   const rendered = ejs.render(templateContent, safeData);
   const outputPath = path.join(CONFIGS_DIR, "user-data.yaml");

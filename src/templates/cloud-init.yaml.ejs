@@ -164,18 +164,8 @@ runcmd:
   - echo "NEXUS cloud-init complete" > /var/log/nexus-init.log
 
 write_files:
-  - path: /home/nexus/.nexus/.env.keys
-    permissions: '0600'
-    owner: nexus:nexus
-    content: |
-      ANTHROPIC_API_KEY=<%= keys.ANTHROPIC_API_KEY %>
-<% if (keys.OPENAI_API_KEY) { %>
-      OPENAI_API_KEY=<%= keys.OPENAI_API_KEY %>
-<% } %>
-<% if (keys.GOOGLE_API_KEY) { %>
-      GOOGLE_API_KEY=<%= keys.GOOGLE_API_KEY %>
-<% } %>
-      NEXUS_MASTER_SECRET=<%= keys.NEXUS_MASTER_SECRET %>
+  # API keys are NOT embedded in the ISO — they are uploaded via SSH after boot
+  # See init.ts Phase 7 for the secure key delivery flow
 
   - path: /home/nexus/.nexus/config.yaml
     permissions: '0644'

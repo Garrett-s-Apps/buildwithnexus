@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { execa } from "execa";
 import { NodeSSH } from "node-ssh";
 import { NEXUS_HOME } from "./secrets.js";
@@ -9,6 +10,25 @@ const SSH_DIR = path.join(NEXUS_HOME, "ssh");
 const SSH_KEY = path.join(SSH_DIR, "id_nexus_vm");
 const SSH_PUB_KEY = path.join(SSH_DIR, "id_nexus_vm.pub");
 const KNOWN_HOSTS = path.join(SSH_DIR, "known_hosts_nexus_vm");
+const PINNED_HOST_KEY = path.join(SSH_DIR, "vm_host_key.pin");
+
+function getHostVerifier(): (key: Buffer) => boolean {
+  if (!fs.existsSync(PINNED_HOST_KEY)) {
+    return (key: Buffer) => {
+      const fp = crypto.createHash("sha256").update(key).digest("base64");
+      fs.writeFileSync(PINNED_HOST_KEY, fp, { mode: 0o600 });
+      audit("ssh_exec", `host key pinned: SHA256:${fp}`);
+      return true;
+    };
+  }
+  const pinned = fs.readFileSync(PINNED_HOST_KEY, "utf-8").trim();
+  return (key: Buffer) => {
+    const fp = crypto.createHash("sha256").update(key).digest("base64");
+    const match = fp === pinned;
+    if (!match) audit("ssh_exec", `host key mismatch: expected ${pinned}, got ${fp}`);
+    return match;
+  };
+}
 
 export function getKeyPath(): string {
   return SSH_KEY;
@@ -70,6 +90,7 @@ export async function waitForSsh(port: number, timeoutMs: number = 300_000): Pro
         username: "nexus",
         privateKeyPath: SSH_KEY,
         readyTimeout: 5000,
+        hostVerifier: getHostVerifier(),
       });
       ssh.dispose();
       return true;
@@ -88,6 +109,7 @@ export async function sshExec(port: number, command: string): Promise<{ stdout: 
     port,
     username: "nexus",
     privateKeyPath: SSH_KEY,
+    hostVerifier: getHostVerifier(),
   });
   const result = await ssh.execCommand(command);
   ssh.dispose();
@@ -101,6 +123,7 @@ export async function sshUploadFile(port: number, localPath: string, remotePath:
     port,
     username: "nexus",
     privateKeyPath: SSH_KEY,
+    hostVerifier: getHostVerifier(),
   });
   await ssh.putFile(localPath, remotePath);
   ssh.dispose();

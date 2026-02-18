@@ -27,8 +27,11 @@ import { waitForCloudInit, waitForServer } from "../core/health.js";
 import { installCloudflared, startTunnel } from "../core/tunnel.js";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { redactError, validateAllKeys, DlpViolation } from "../core/dlp.js";
+import { sshExec } from "../core/ssh.js";
 
 function getReleaseTarball(): string {
   const dir = path.dirname(fileURLToPath(import.meta.url));
@@ -169,6 +172,23 @@ export const initCommand = new Command("init")
       spinner.start();
       await sshUploadFile(config.sshPort, tarballPath, "/tmp/nexus-release.tar.gz");
       succeed(spinner, "Tarball uploaded");
+
+      // Securely deliver API keys via SSH (not embedded in cloud-init ISO)
+      spinner = createSpinner("Uploading API keys via SSH...");
+      spinner.start();
+      const keysContent = Object.entries(keys)
+        .filter(([, v]) => v)
+        .map(([k, v]) => `${k}=${v}`)
+        .join("\n") + "\n";
+      const tmpKeysPath = path.join(os.tmpdir(), `.nexus-keys-${crypto.randomBytes(8).toString("hex")}`);
+      fs.writeFileSync(tmpKeysPath, keysContent, { mode: 0o600 });
+      await sshExec(config.sshPort, "sudo -u nexus mkdir -p /home/nexus/.nexus");
+      await sshUploadFile(config.sshPort, tmpKeysPath, "/home/nexus/.nexus/.env.keys");
+      await sshExec(config.sshPort, "chown nexus:nexus /home/nexus/.nexus/.env.keys && chmod 600 /home/nexus/.nexus/.env.keys");
+      // Overwrite local temp file before deleting
+      fs.writeFileSync(tmpKeysPath, "0".repeat(keysContent.length));
+      fs.unlinkSync(tmpKeysPath);
+      succeed(spinner, "API keys delivered securely via SSH");
 
       spinner = createSpinner("Cloud-init provisioning (extracting NEXUS, building Docker, installing deps)...");
       spinner.start();

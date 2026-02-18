@@ -12,11 +12,12 @@ export async function installCloudflared(sshPort: number, arch: "arm64" | "x64")
   const url = `https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-${debArch}.deb`;
   const sha = CLOUDFLARED_SHA256[debArch];
 
+  const shaCheck = `${sha}  /tmp/cloudflared.deb`;
   await sshExec(sshPort, [
-    `curl -sL ${url} -o /tmp/cloudflared.deb`,
-    `echo '${sha}  /tmp/cloudflared.deb' | sha256sum -c -`,
-    `sudo dpkg -i /tmp/cloudflared.deb`,
-    `rm -f /tmp/cloudflared.deb`,
+    shellCommand`curl -sL ${url} -o /tmp/cloudflared.deb`,
+    shellCommand`echo ${shaCheck} | sha256sum -c -`,
+    "sudo dpkg -i /tmp/cloudflared.deb",
+    "rm -f /tmp/cloudflared.deb",
   ].join(" && "));
 }
 

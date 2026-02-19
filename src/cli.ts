@@ -16,7 +16,7 @@ import { shellCommand } from "./commands/shell.js";
 export const cli = new Command()
   .name("buildwithnexus")
   .description("Auto-scaffold and launch a fully autonomous NEXUS runtime")
-  .version("0.3.0");
+  .version("0.3.1");
 
 cli.addCommand(initCommand);
 cli.addCommand(startCommand);

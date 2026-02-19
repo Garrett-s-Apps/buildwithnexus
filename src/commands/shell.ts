@@ -180,24 +180,62 @@ export const shellCommand = new Command("shell")
       // Register slash commands
       repl.registerCommand({
         name: "brainstorm",
-        description: "Enter brainstorm mode",
+        description: "Brainstorm with the full NEXUS org (led by Chief of Staff)",
         handler: async () => {
-          console.log(chalk.dim("  Entering brainstorm mode... (type 'exit' to return)"));
-          // Delegate to brainstorm conversation flow inline
+          console.log("");
+          console.log(chalk.bold("  ╔══════════════════════════════════════════════════════════╗"));
+          console.log(chalk.bold("  ║  ") + chalk.bold.cyan("NEXUS Brainstorm Session") + chalk.bold("                                ║"));
+          console.log(chalk.bold("  ╠══════════════════════════════════════════════════════════╣"));
+          console.log(chalk.bold("  ║  ") + chalk.dim("The Chief of Staff will facilitate a discussion with".padEnd(55)) + chalk.bold("║"));
+          console.log(chalk.bold("  ║  ") + chalk.dim("the full NEXUS org to refine your idea. When ready,".padEnd(55)) + chalk.bold("║"));
+          console.log(chalk.bold("  ║  ") + chalk.dim("NEXUS will draft an execution plan for your review.".padEnd(55)) + chalk.bold("║"));
+          console.log(chalk.bold("  ║  ") + chalk.dim("Type 'exit' to end brainstorm. Type 'plan' to hand off.".padEnd(55)) + chalk.bold("║"));
+          console.log(chalk.bold("  ╚══════════════════════════════════════════════════════════╝"));
+          console.log("");
+
           const { input } = await import("@inquirer/prompts");
           const idea = await input({ message: "What would you like to brainstorm?" });
           if (!idea.trim()) return;
-          const brainstormSpinner = createSpinner("Chief of Staff is consulting the team...");
-          brainstormSpinner.start();
-          const response = await sendMessage(config.sshPort, `[BRAINSTORM] The CEO wants to brainstorm: ${idea}`);
-          brainstormSpinner.stop();
-          brainstormSpinner.clear();
-          console.log("");
-          console.log(chalk.bold.cyan("  Chief of Staff:"));
-          for (const line of redact(response).split("\n")) {
-            console.log(chalk.white("  " + line));
+
+          let currentMessage = `[BRAINSTORM] The CEO wants to brainstorm the following idea. As Chief of Staff, facilitate a discussion with the entire NEXUS organization — involve VPs, engineers, QA, security, and any relevant specialists. Gather diverse perspectives, identify risks and opportunities, and help refine the idea. Do NOT execute — only discuss, analyze, and recommend. Idea: ${idea}`;
+
+          while (true) {
+            const brainstormSpinner = createSpinner("NEXUS team is discussing...");
+            brainstormSpinner.start();
+            const response = await sendMessage(config.sshPort, currentMessage);
+            brainstormSpinner.stop();
+            brainstormSpinner.clear();
+            console.log("");
+            console.log(chalk.bold.cyan("  Chief of Staff:"));
+            for (const line of redact(response).split("\n")) {
+              console.log(chalk.white("  " + line));
+            }
+            console.log("");
+
+            const followUp = await input({ message: chalk.bold("You:") });
+            const trimmed = followUp.trim().toLowerCase();
+            if (!trimmed || trimmed === "exit" || trimmed === "quit") {
+              console.log("");
+              log.success("Brainstorm session ended");
+              return;
+            }
+            if (trimmed === "plan" || trimmed === "execute" || trimmed === "go") {
+              const planSpinner = createSpinner("Handing off to NEXUS for execution planning...");
+              planSpinner.start();
+              const planResponse = await sendMessage(config.sshPort, `[BRAINSTORM→PLAN] The CEO approves this direction from the brainstorm session. Draft a detailed execution plan with task assignments, timelines, and dependencies. Previous discussion context: ${idea}`);
+              planSpinner.stop();
+              planSpinner.clear();
+              console.log("");
+              console.log(chalk.bold.green("  Execution Plan:"));
+              for (const line of redact(planResponse).split("\n")) {
+                console.log(chalk.white("  " + line));
+              }
+              console.log("");
+              log.success("Plan drafted. Use the shell to refine or approve.");
+              return;
+            }
+            currentMessage = `[BRAINSTORM FOLLOW-UP] The CEO responds: ${followUp}`;
           }
-          console.log("");
         },
       });
 
@@ -245,12 +283,146 @@ export const shellCommand = new Command("shell")
 
       repl.registerCommand({
         name: "ssh",
-        description: "Open interactive SSH session",
+        description: "Drop into the VM for debugging/inspection",
         handler: async () => {
           const { openInteractiveSsh } = await import("../core/ssh.js");
           eventStream.stop();
           await openInteractiveSsh(config.sshPort);
           eventStream.start();
+        },
+      });
+
+      repl.registerCommand({
+        name: "org-chart",
+        description: "Display the NEXUS organizational hierarchy",
+        handler: async () => {
+          console.log("");
+          console.log(chalk.bold("  NEXUS Organizational Hierarchy"));
+          console.log(chalk.dim("  ─────────────────────────────────────────────────"));
+          console.log(`  ${chalk.bold.white("You")} ${chalk.dim("(CEO)")}`);
+          console.log(`  └── ${chalk.bold.cyan("Chief of Staff")} ${chalk.dim("— orchestrates all work, your direct interface")}`);
+          console.log(`      ├── ${chalk.bold.blue("VP Engineering")} ${chalk.dim("— owns technical execution")}`);
+          console.log(`      │   ├── ${chalk.green("Senior Engineer")} ${chalk.dim("× 8 — implementation, refactoring")}`);
+          console.log(`      │   ├── ${chalk.green("Engineer")} ${chalk.dim("× 12 — feature work, bug fixes")}`);
+          console.log(`      │   └── ${chalk.hex("#FF8C00")("DevOps Engineer")} ${chalk.dim("× 4 — CI/CD, Docker, infra")}`);
+          console.log(`      ├── ${chalk.bold.magenta("VP Product")} ${chalk.dim("— owns roadmap and priorities")}`);
+          console.log(`      │   ├── ${chalk.magenta("Product Manager")} ${chalk.dim("× 3 — specs, requirements")}`);
+          console.log(`      │   └── ${chalk.magenta("Designer")} ${chalk.dim("× 2 — UI/UX, prototyping")}`);
+          console.log(`      ├── ${chalk.bold.yellow("QA Lead")} ${chalk.dim("— owns quality assurance")}`);
+          console.log(`      │   └── ${chalk.yellow("QA Engineer")} ${chalk.dim("× 6 — testing, coverage, validation")}`);
+          console.log(`      ├── ${chalk.bold.red("Security Engineer")} ${chalk.dim("× 4 — auth, scanning, compliance")}`);
+          console.log(`      └── ${chalk.bold.white("Knowledge Manager")} ${chalk.dim("— RAG, documentation, learning")}`);
+          console.log("");
+          console.log(chalk.dim("  56 agents total · Self-learning ML pipeline"));
+          console.log(chalk.dim("  Full details: https://buildwithnexus.dev/overview"));
+          console.log("");
+        },
+      });
+
+      repl.registerCommand({
+        name: "security",
+        description: "Show the security posture of this runtime",
+        handler: async () => {
+          const { showSecurityPosture } = await import("../ui/banner.js");
+          showSecurityPosture();
+        },
+      });
+
+      repl.registerCommand({
+        name: "tutorial",
+        description: "Guided walkthrough of NEXUS capabilities",
+        handler: async () => {
+          const { input } = await import("@inquirer/prompts");
+          const steps = [
+            {
+              title: "Welcome to NEXUS",
+              content: [
+                "NEXUS is a 56-agent autonomous engineering organization.",
+                "You are the CEO. The Chief of Staff leads your team.",
+                "",
+                "When you type a request, the Chief of Staff:",
+                "  1. Analyzes what needs to be done",
+                "  2. Delegates to the right VPs and specialists",
+                "  3. Agents collaborate, review each other's work",
+                "  4. Results stream back to you in real time",
+              ],
+            },
+            {
+              title: "The Org Chart",
+              content: [
+                "You → Chief of Staff → VPs → Engineers",
+                "",
+                "  VP Engineering  — 24 engineers, DevOps",
+                "  VP Product      — PMs, designers",
+                "  QA Lead         — 6 QA engineers",
+                "  Security        — 4 security engineers",
+                "  Knowledge       — RAG, documentation",
+                "",
+                "Run /org-chart to see the full hierarchy.",
+              ],
+            },
+            {
+              title: "Try It: Natural Language",
+              content: [
+                "Just type what you want built. Examples:",
+                "",
+                '  "Build a REST API with JWT authentication"',
+                '  "Fix the memory leak in the worker pool"',
+                '  "Refactor the database layer to use connection pooling"',
+                "",
+                "NEXUS assigns the right agents automatically.",
+                "You'll see their thinking and delegation in real time.",
+              ],
+            },
+            {
+              title: "Brainstorming",
+              content: [
+                "Use /brainstorm to explore ideas before committing.",
+                "",
+                "The Chief of Staff facilitates an org-wide discussion:",
+                "  - Engineers assess technical feasibility",
+                "  - Security flags risks",
+                "  - Product suggests user impact",
+                "  - QA identifies testing needs",
+                "",
+                "Type 'plan' when ready to hand off for execution.",
+              ],
+            },
+            {
+              title: "Monitoring & Control",
+              content: [
+                "  /status   — System health (VM, SSH, Docker, Engine)",
+                "  /agents   — List all 56 registered agents",
+                "  /cost     — Token usage and spend tracking",
+                "  /logs     — Server logs for debugging",
+                "  /ssh      — Drop into the VM directly",
+                "  /security — View the security posture",
+                "",
+                "You're in control. NEXUS executes.",
+              ],
+            },
+          ];
+
+          for (let i = 0; i < steps.length; i++) {
+            const step = steps[i];
+            console.log("");
+            console.log(chalk.bold(`  ── ${chalk.cyan(`Step ${i + 1}/${steps.length}`)} ── ${step.title} ──`));
+            console.log("");
+            for (const line of step.content) {
+              console.log(chalk.white("  " + line));
+            }
+            console.log("");
+            if (i < steps.length - 1) {
+              const next = await input({ message: chalk.dim("Press Enter to continue (or 'skip' to exit)") });
+              if (next.trim().toLowerCase() === "skip") {
+                log.success("Tutorial ended. Type /help to see all commands.");
+                return;
+              }
+            }
+          }
+          console.log("");
+          log.success("Tutorial complete! Start typing to talk to NEXUS.");
+          console.log("");
         },
       });
 

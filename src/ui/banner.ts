@@ -18,6 +18,28 @@ export function showPhase(phase: number, total: number, description: string): vo
   console.log(`\n${progress} ${chalk.bold(description)}`);
 }
 
+export function showSecurityPosture(): void {
+  const lines = [
+    "",
+    chalk.bold("  ╔══════════════════════════════════════════════════════════╗"),
+    chalk.bold("  ║  ") + chalk.bold.green("Security Posture") + chalk.bold("                                        ║"),
+    chalk.bold("  ╠══════════════════════════════════════════════════════════╣"),
+    chalk.bold("  ║  ") + chalk.green("✓") + chalk.white(" Triple-nested isolation: Host → VM → Docker → KVM".padEnd(54)) + chalk.bold("║"),
+    chalk.bold("  ║  ") + chalk.green("✓") + chalk.white(" Network hardened: UFW deny-all, allow 22/80/443/4200".padEnd(54)) + chalk.bold("║"),
+    chalk.bold("  ║  ") + chalk.green("✓") + chalk.white(" All databases encrypted at rest (AES-256-CBC)".padEnd(54)) + chalk.bold("║"),
+    chalk.bold("  ║  ") + chalk.green("✓") + chalk.white(" API keys never embedded in VM — delivered via SCP".padEnd(54)) + chalk.bold("║"),
+    chalk.bold("  ║  ") + chalk.green("✓") + chalk.white(" SSH-only communication (no exposed network ports)".padEnd(54)) + chalk.bold("║"),
+    chalk.bold("  ║  ") + chalk.green("✓") + chalk.white(" DLP: secret detection, shell escaping, output redaction".padEnd(54)) + chalk.bold("║"),
+    chalk.bold("  ║  ") + chalk.green("✓") + chalk.white(" HMAC integrity verification on all key files".padEnd(54)) + chalk.bold("║"),
+    chalk.bold("  ║  ") + chalk.green("✓") + chalk.white(" Docker: --read-only, no-new-privileges, cap-drop=ALL".padEnd(54)) + chalk.bold("║"),
+    chalk.bold("  ╠══════════════════════════════════════════════════════════╣"),
+    chalk.bold("  ║  ") + chalk.dim("Full details: https://buildwithnexus.dev/security".padEnd(55)) + chalk.bold("║"),
+    chalk.bold("  ╚══════════════════════════════════════════════════════════╝"),
+    "",
+  ];
+  console.log(lines.join("\n"));
+}
+
 export function showCompletion(urls: { remote?: string; ssh: string }): void {
   const lines = [
     "",
@@ -31,15 +53,13 @@ export function showCompletion(urls: { remote?: string; ssh: string }): void {
   }
   lines.push(
     chalk.green("  ╠══════════════════════════════════════════════════════════╣"),
-    chalk.green("  ║  ") + chalk.dim("Commands:".padEnd(55)) + chalk.green("║"),
-    chalk.green("  ║  ") + chalk.white("  buildwithnexus ssh       - Open CLI".padEnd(55)) + chalk.green("║"),
-    chalk.green("  ║  ") + chalk.white("  buildwithnexus status    - Check health".padEnd(55)) + chalk.green("║"),
-    chalk.green("  ║  ") + chalk.white("  buildwithnexus logs      - View logs".padEnd(55)) + chalk.green("║"),
-    chalk.green("  ║  ") + chalk.white("  buildwithnexus stop      - Shutdown".padEnd(55)) + chalk.green("║"),
-    chalk.green("  ║  ") + chalk.white("  buildwithnexus start     - Restart".padEnd(55)) + chalk.green("║"),
-    chalk.green("  ║  ") + chalk.white("  buildwithnexus update    - Update release".padEnd(55)) + chalk.green("║"),
+    chalk.green("  ║  ") + chalk.dim("Quick Start:".padEnd(55)) + chalk.green("║"),
+    chalk.green("  ║  ") + chalk.white("  buildwithnexus           - Interactive shell".padEnd(55)) + chalk.green("║"),
     chalk.green("  ║  ") + chalk.white("  buildwithnexus brainstorm - Brainstorm ideas".padEnd(55)) + chalk.green("║"),
-    chalk.green("  ║  ") + chalk.white("  buildwithnexus destroy   - Remove all".padEnd(55)) + chalk.green("║"),
+    chalk.green("  ║  ") + chalk.white("  buildwithnexus status    - Check health".padEnd(55)) + chalk.green("║"),
+    chalk.green("  ╠══════════════════════════════════════════════════════════╣"),
+    chalk.green("  ║  ") + chalk.dim("All commands:".padEnd(55)) + chalk.green("║"),
+    chalk.green("  ║  ") + chalk.white("  buildwithnexus stop/start/update/logs/ssh/destroy".padEnd(55)) + chalk.green("║"),
     chalk.green("  ╚══════════════════════════════════════════════════════════╝"),
     "",
   );

@@ -10,12 +10,13 @@ import { destroyCommand } from "./commands/destroy.js";
 import { keysCommand } from "./commands/keys.js";
 import { sshCommand } from "./commands/ssh.js";
 import { brainstormCommand } from "./commands/brainstorm.js";
+import { ninetyNineCommand } from "./commands/ninety-nine.js";
 import { shellCommand } from "./commands/shell.js";
 
 export const cli = new Command()
   .name("buildwithnexus")
   .description("Auto-scaffold and launch a fully autonomous NEXUS runtime")
-  .version("0.2.8");
+  .version("0.3.0");
 
 cli.addCommand(initCommand);
 cli.addCommand(startCommand);
@@ -28,6 +29,7 @@ cli.addCommand(destroyCommand);
 cli.addCommand(keysCommand);
 cli.addCommand(sshCommand);
 cli.addCommand(brainstormCommand);
+cli.addCommand(ninetyNineCommand);
 cli.addCommand(shellCommand);
 
 // Default action: launch interactive shell if configured, else show help

@@ -10,6 +10,7 @@ import { destroyCommand } from "./commands/destroy.js";
 import { keysCommand } from "./commands/keys.js";
 import { sshCommand } from "./commands/ssh.js";
 import { brainstormCommand } from "./commands/brainstorm.js";
+import { shellCommand } from "./commands/shell.js";
 
 export const cli = new Command()
   .name("buildwithnexus")
@@ -27,8 +28,20 @@ cli.addCommand(destroyCommand);
 cli.addCommand(keysCommand);
 cli.addCommand(sshCommand);
 cli.addCommand(brainstormCommand);
+cli.addCommand(shellCommand);
 
-// Default action: show help
-cli.action(() => {
+// Default action: launch interactive shell if configured, else show help
+cli.action(async () => {
+  try {
+    const { loadConfig } = await import("./core/secrets.js");
+    const { isVmRunning } = await import("./core/qemu.js");
+    const config = loadConfig();
+    if (config && isVmRunning()) {
+      await shellCommand.parseAsync([], { from: "user" });
+      return;
+    }
+  } catch {
+    // Fall through to help
+  }
   cli.help();
 });

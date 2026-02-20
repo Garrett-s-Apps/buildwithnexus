@@ -219,6 +219,7 @@ export type AuditEvent =
   | "cloudinit_plaintext_deleted"
   | "ssh_exec"
   | "tunnel_url_captured"
+  | "tunnel_url_rejected"
   | "dlp_violation"
   | "env_scrubbed";
 

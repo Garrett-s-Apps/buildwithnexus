@@ -40,70 +40,60 @@ export async function createCloudInitIso(userDataPath: string): Promise<string> 
   fs.writeFileSync(metaDataPath, "instance-id: nexus-vm-1\nlocal-hostname: nexus-vm\n", { mode: 0o600 });
 
   const isoPath = path.join(IMAGES_DIR, "init.iso");
-
   const env = scrubEnv();
 
-  // Try mkisofs, then genisoimage, then macOS-native hdiutil
-  let created = false;
-
   try {
-    await execa("mkisofs", [
-      "-output", isoPath,
-      "-volid", "cidata",
-      "-joliet", "-rock",
-      userDataPath,
-      metaDataPath,
-    ], { env });
-    created = true;
-  } catch { /* not available */ }
+    // Try mkisofs and genisoimage (identical args)
+    let created = false;
+    for (const tool of ["mkisofs", "genisoimage"]) {
+      if (created) break;
+      try {
+        await execa(tool, [
+          "-output", isoPath,
+          "-volid", "cidata",
+          "-joliet", "-rock",
+          userDataPath,
+          metaDataPath,
+        ], { env });
+        created = true;
+      } catch { /* tool not available */ }
+    }
 
-  if (!created) {
-    try {
-      await execa("genisoimage", [
-        "-output", isoPath,
-        "-volid", "cidata",
-        "-joliet", "-rock",
-        userDataPath,
-        metaDataPath,
-      ], { env });
-      created = true;
-    } catch { /* not available */ }
+    // macOS fallback: hdiutil makehybrid (built-in, no Homebrew needed)
+    if (!created) {
+      try {
+        const stagingDir = path.join(CONFIGS_DIR, "cidata-staging");
+        fs.mkdirSync(stagingDir, { recursive: true, mode: 0o700 });
+        fs.copyFileSync(userDataPath, path.join(stagingDir, "user-data"));
+        fs.copyFileSync(metaDataPath, path.join(stagingDir, "meta-data"));
+        await execa("hdiutil", [
+          "makehybrid",
+          "-o", isoPath,
+          "-joliet",
+          "-iso",
+          "-default-volume-name", "cidata",
+          stagingDir,
+        ], { env });
+        fs.rmSync(stagingDir, { recursive: true, force: true });
+        created = true;
+      } catch { /* not available */ }
+    }
+
+    if (!created) {
+      throw new Error(
+        "Cannot create cloud-init ISO: none of mkisofs, genisoimage, or hdiutil are available. " +
+        "On macOS, install cdrtools: brew install cdrtools. " +
+        "On Linux: sudo apt install genisoimage",
+      );
+    }
+
+    fs.chmodSync(isoPath, 0o600);
+    audit("cloudinit_iso_created", "init.iso created");
+    return isoPath;
+  } finally {
+    // Guarantee plaintext key files are removed even if ISO creation fails
+    try { fs.unlinkSync(userDataPath); } catch { /* ignore */ }
+    try { fs.unlinkSync(metaDataPath); } catch { /* ignore */ }
+    audit("cloudinit_plaintext_deleted", "user-data.yaml and meta-data.yaml removed");
   }
-
-  // macOS fallback: hdiutil makehybrid (built-in, no Homebrew needed)
-  if (!created) {
-    try {
-      const stagingDir = path.join(CONFIGS_DIR, "cidata-staging");
-      fs.mkdirSync(stagingDir, { recursive: true, mode: 0o700 });
-      fs.copyFileSync(userDataPath, path.join(stagingDir, "user-data"));
-      fs.copyFileSync(metaDataPath, path.join(stagingDir, "meta-data"));
-      await execa("hdiutil", [
-        "makehybrid",
-        "-o", isoPath,
-        "-joliet",
-        "-iso",
-        "-default-volume-name", "cidata",
-        stagingDir,
-      ], { env });
-      fs.rmSync(stagingDir, { recursive: true, force: true });
-      created = true;
-    } catch { /* not available */ }
-  }
-
-  if (!created) {
-    throw new Error(
-      "Cannot create cloud-init ISO: none of mkisofs, genisoimage, or hdiutil are available. " +
-      "On macOS, install cdrtools: brew install cdrtools. " +
-      "On Linux: sudo apt install genisoimage",
-    );
-  }
-
-  // Restrict ISO permissions and clean up plaintext key files
-  fs.chmodSync(isoPath, 0o600);
-  fs.unlinkSync(userDataPath);
-  fs.unlinkSync(metaDataPath);
-  audit("cloudinit_plaintext_deleted", "user-data.yaml and meta-data.yaml removed");
-  audit("cloudinit_iso_created", "init.iso created");
-
-  return isoPath;
 }

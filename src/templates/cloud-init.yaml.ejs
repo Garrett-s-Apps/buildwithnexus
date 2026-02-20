@@ -7,25 +7,21 @@ users:
     ssh_authorized_keys:
       - <%= sshPubKey %>
 
-package_update: true
-packages:
-  - docker.io
-  - docker-compose
-  - python3
-  - python3-pip
-  - python3-venv
-  - git
-  - curl
-  - wget
-  - jq
-  - tmux
-  - auditd
-  - ufw
-  - qemu-system-arm64
-  - libvirt-daemon
-  - libvirt-clients
-
 runcmd:
+  # Wait for network + install packages (QEMU SLIRP DNS is slow at boot)
+  - |
+    PACKAGES="docker.io docker-compose software-properties-common git curl wget jq tmux auditd ufw libvirt-daemon libvirt-daemon-system libvirt-clients"
+    for attempt in $(seq 1 10); do
+      apt-get update && \
+      DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing $PACKAGES && \
+      break
+      echo "Package install failed (attempt $attempt/10), retrying in 15s..."
+      sleep 15
+    done
+
+  # Fix ownership on deferred write_files (user now exists)
+  - chown -R nexus:nexus /home/nexus/.nexus
+
   # Security hardening
   - ufw default deny incoming
   - ufw default deny outgoing
@@ -68,6 +64,11 @@ runcmd:
   - systemctl enable libvirtd
   - usermod -aG libvirt nexus
 
+  # Python 3.12 (Jammy ships 3.10; NEXUS requires >= 3.11 for datetime.UTC)
+  - add-apt-repository -y ppa:deadsnakes/ppa
+  - apt-get update -qq
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3.12 python3.12-venv python3.12-dev
+
   # Extract NEXUS from release tarball (uploaded via SCP after SSH is ready)
   - sudo -u nexus mkdir -p /home/nexus/nexus
   - |
@@ -79,8 +80,8 @@ runcmd:
   - sudo -u nexus tar xzf /tmp/nexus-release.tar.gz -C /home/nexus/nexus
   - rm -f /tmp/nexus-release.tar.gz
 
-  # Python environment
-  - sudo -u nexus python3 -m venv /home/nexus/nexus/.venv
+  # Python environment (must use python3.12 for datetime.UTC support)
+  - sudo -u nexus python3.12 -m venv /home/nexus/nexus/.venv
   - sudo -u nexus /home/nexus/nexus/.venv/bin/pip install --upgrade pip
   - sudo -u nexus /home/nexus/nexus/.venv/bin/pip install -r /home/nexus/nexus/requirements.txt
 
@@ -169,7 +170,7 @@ write_files:
 
   - path: /home/nexus/.nexus/config.yaml
     permissions: '0644'
-    owner: nexus:nexus
+    defer: true
     content: |
       nested_vm_enabled: true
       orchestration_mode: autonomous

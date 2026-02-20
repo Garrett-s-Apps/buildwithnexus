@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import { execa } from "execa";
+import { execa, execaSync } from "execa";
+import { select } from "@inquirer/prompts";
+import chalk from "chalk";
 import type { PlatformInfo } from "./platform.js";
 import { NEXUS_HOME } from "./secrets.js";
 import { scrubEnv } from "./dlp.js";
@@ -25,10 +27,17 @@ export async function installQemu(platform: PlatformInfo): Promise<void> {
   if (platform.os === "mac") {
     await execa("brew", ["install", "qemu", "cdrtools"], { stdio: "inherit", env: scrubEnv() });
   } else if (platform.os === "linux") {
+    // Detect package manager before attempting install
+    let hasApt = false;
     try {
+      await execa("which", ["apt-get"], { env: scrubEnv() });
+      hasApt = true;
+    } catch { /* apt-get not available */ }
+
+    if (hasApt) {
       await execa("sudo", ["apt-get", "update"], { stdio: "inherit", env: scrubEnv() });
       await execa("sudo", ["apt-get", "install", "-y", "qemu-system", "qemu-utils", "genisoimage"], { stdio: "inherit", env: scrubEnv() });
-    } catch {
+    } else {
       await execa("sudo", ["yum", "install", "-y", "qemu-system-arm", "qemu-system-x86", "qemu-img", "genisoimage"], { stdio: "inherit", env: scrubEnv() });
     }
   } else {
@@ -41,7 +50,7 @@ export async function downloadImage(platform: PlatformInfo): Promise<string> {
   if (fs.existsSync(imagePath)) return imagePath;
 
   const url = `${UBUNTU_BASE_URL}/${platform.ubuntuImage}`;
-  await execa("curl", ["-L", "-o", imagePath, "--progress-bar", url], { stdio: "inherit", env: scrubEnv() });
+  await execa("curl", ["-L", "-C", "-", "-o", imagePath, "--progress-bar", url], { stdio: "inherit", env: scrubEnv() });
   return imagePath;
 }
 
@@ -52,9 +61,6 @@ export async function createDisk(basePath: string, sizeGb: number): Promise<stri
   await execa("qemu-img", ["create", "-f", "qcow2", "-b", basePath, "-F", "qcow2", diskPath, `${sizeGb}G`], { env: scrubEnv() });
   return diskPath;
 }
-
-import { select } from "@inquirer/prompts";
-import chalk from "chalk";
 
 function tryBind(port: number, host: string): Promise<boolean> {
   return new Promise((resolve) => {
@@ -151,7 +157,6 @@ export async function resolvePortConflicts(
     if (action === "kill" && blocker) {
       try {
         process.kill(blocker.pid, "SIGTERM");
-        // Wait briefly for process to exit
         await new Promise((r) => setTimeout(r, 1000));
         if (!(await isPortFree(port))) {
           process.kill(blocker.pid, "SIGKILL");
@@ -183,32 +188,32 @@ export async function launchVm(
   ports: ResolvedPorts,
 ): Promise<ResolvedPorts> {
 
-  const machineArg = platform.os === "mac" ? "-machine virt,gic-version=3" : "-machine pc";
+  const machineArgs = platform.os === "mac"
+    ? ["-machine", "virt,gic-version=3"]
+    : ["-machine", "pc"];
   const biosArgs = fs.existsSync(platform.biosPath) ? ["-bios", platform.biosPath] : [];
 
-  function buildArgs(cpuFlag: string): string[] {
-    return [
-      ...machineArg.split(" "),
-      ...cpuFlag.split(" "),
-      "-m", `${ram}G`,
-      "-smp", `${cpus}`,
-      "-drive", `file=${diskPath},if=virtio,cache=writethrough`,
-      "-drive", `file=${initIsoPath},if=virtio,format=raw,cache=writethrough`,
-      "-display", "none",
-      "-serial", "none",
-      "-net", "nic,model=virtio",
-      "-net", `user,hostfwd=tcp::${ports.ssh}-:22,hostfwd=tcp::${ports.http}-:4200,hostfwd=tcp::${ports.https}-:443`,
-      ...biosArgs,
-      "-pidfile", PID_FILE,
-      "-daemonize",
-    ];
-  }
+  const buildArgs = (cpuArgs: string[]): string[] => [
+    ...machineArgs,
+    ...cpuArgs,
+    "-m", `${ram}G`,
+    "-smp", `${cpus}`,
+    "-drive", `file=${diskPath},if=virtio,cache=writethrough`,
+    "-drive", `file=${initIsoPath},if=virtio,format=raw,cache=writethrough`,
+    "-display", "none",
+    "-serial", "none",
+    "-net", "nic,model=virtio",
+    "-net", `user,hostfwd=tcp::${ports.ssh}-:22,hostfwd=tcp::${ports.http}-:4200,hostfwd=tcp::${ports.https}-:443`,
+    ...biosArgs,
+    "-pidfile", PID_FILE,
+    "-daemonize",
+  ];
 
   // Try with HVF acceleration first, fall back to software emulation
   try {
-    await execa(platform.qemuBinary, buildArgs(platform.qemuCpuFlag), { env: scrubEnv() });
+    await execa(platform.qemuBinary, buildArgs(platform.qemuCpuFlag.split(" ")), { env: scrubEnv() });
   } catch {
-    const fallbackCpu = platform.os === "mac" ? "-cpu max" : "-cpu qemu64";
+    const fallbackCpu = platform.os === "mac" ? ["-cpu", "max"] : ["-cpu", "qemu64"];
     await execa(platform.qemuBinary, buildArgs(fallbackCpu), { env: scrubEnv() });
   }
   return ports;
@@ -220,6 +225,15 @@ function readValidPid(): number | null {
   const pid = parseInt(raw, 10);
   if (!Number.isInteger(pid) || pid <= 1 || pid > 4194304) return null;
   return pid;
+}
+
+function isQemuPid(pid: number): boolean {
+  try {
+    const { stdout } = execaSync("ps", ["-p", String(pid), "-o", "comm="], { env: scrubEnv() });
+    return stdout.trim().toLowerCase().includes("qemu");
+  } catch {
+    return false;
+  }
 }
 
 export function isVmRunning(): boolean {
@@ -236,6 +250,11 @@ export function isVmRunning(): boolean {
 export function stopVm(): void {
   const pid = readValidPid();
   if (!pid) return;
+  // Verify PID belongs to QEMU before signaling
+  if (!isQemuPid(pid)) {
+    try { fs.unlinkSync(PID_FILE); } catch { /* ignore */ }
+    return;
+  }
   try {
     process.kill(pid, "SIGTERM");
   } catch {

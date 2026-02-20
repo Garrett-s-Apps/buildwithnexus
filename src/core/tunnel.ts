@@ -22,21 +22,23 @@ export async function installCloudflared(sshPort: number, arch: "arm64" | "x64")
 }
 
 export async function startTunnel(sshPort: number): Promise<string | null> {
-  // Start cloudflared in background, capture URL
+  // Use a restricted log path under nexus home instead of world-readable /tmp
   await sshExec(sshPort, [
-    "nohup cloudflared tunnel --url http://localhost:4200",
-    "> /tmp/tunnel.log 2>&1 &",
+    "install -m 600 /dev/null /home/nexus/.nexus/tunnel.log",
+    "&& nohup cloudflared tunnel --no-autoupdate --url http://localhost:4200",
+    "> /home/nexus/.nexus/tunnel.log 2>&1 &",
     "disown",
   ].join(" "));
 
-  // Wait for URL to appear in logs (up to 30s)
+  // Wait for URL to appear in logs (up to 60s — tunnel setup can be slow)
   const start = Date.now();
-  while (Date.now() - start < 30_000) {
+  while (Date.now() - start < 60_000) {
     try {
-      const { stdout } = await sshExec(sshPort, "grep -o 'https://[^ ]*\\.trycloudflare\\.com' /tmp/tunnel.log 2>/dev/null | head -1");
+      const { stdout } = await sshExec(sshPort, "grep -oE 'https://[a-z0-9-]+\\.trycloudflare\\.com' /home/nexus/.nexus/tunnel.log 2>/dev/null | head -1");
       if (stdout.includes("https://")) {
         const url = stdout.trim();
         if (!/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(url)) {
+          audit("tunnel_url_rejected", `Invalid URL format: ${url.slice(0, 80)}`);
           return null;
         }
         await sshExec(sshPort, shellCommand`printf '%s\n' ${url} > /home/nexus/.nexus/tunnel-url.txt && chmod 600 /home/nexus/.nexus/tunnel-url.txt`);

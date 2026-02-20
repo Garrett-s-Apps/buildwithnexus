@@ -187,8 +187,8 @@ export const initCommand = new Command("init")
       await sshUploadFile(config.sshPort, tarballPath, "/tmp/nexus-release.tar.gz");
       succeed(spinner, "Tarball uploaded");
 
-      // Securely deliver API keys via SSH (not embedded in cloud-init ISO)
-      spinner = createSpinner("Uploading API keys via SSH...");
+      // Stage API keys in /tmp (nexus user doesn't exist until cloud-init finishes)
+      spinner = createSpinner("Staging API keys...");
       spinner.start();
       const keysContent = Object.entries(keys)
         .filter(([, v]) => v)
@@ -197,26 +197,31 @@ export const initCommand = new Command("init")
       const tmpKeysPath = path.join(os.tmpdir(), `.nexus-keys-${crypto.randomBytes(8).toString("hex")}`);
       fs.writeFileSync(tmpKeysPath, keysContent, { mode: 0o600 });
       try {
-        await sshExec(config.sshPort, "sudo -u nexus mkdir -p /home/nexus/.nexus");
-        await sshUploadFile(config.sshPort, tmpKeysPath, "/home/nexus/.nexus/.env.keys");
-        await sshExec(config.sshPort, "chown nexus:nexus /home/nexus/.nexus/.env.keys && chmod 600 /home/nexus/.nexus/.env.keys");
+        await sshUploadFile(config.sshPort, tmpKeysPath, "/tmp/.nexus-env-keys");
+        await sshExec(config.sshPort, "chmod 600 /tmp/.nexus-env-keys");
       } finally {
         try {
           fs.writeFileSync(tmpKeysPath, "0".repeat(keysContent.length));
           fs.unlinkSync(tmpKeysPath);
         } catch { /* best-effort cleanup */ }
       }
-      succeed(spinner, "API keys delivered securely via SSH");
+      succeed(spinner, "API keys staged");
 
-      spinner = createSpinner("Cloud-init provisioning (extracting NEXUS, building Docker, installing deps)...");
+      spinner = createSpinner("Cloud-init provisioning — this takes 10-20 min (extracting NEXUS, building Docker, installing deps)...");
       spinner.start();
       const cloudInitDone = await waitForCloudInit(config.sshPort);
       if (!cloudInitDone) {
-        fail(spinner, "Cloud-init timed out");
+        fail(spinner, "Cloud-init timed out after 30 minutes");
         log.warn("You can check progress with: buildwithnexus ssh then: tail -f /var/log/cloud-init-output.log");
         process.exit(1);
       }
       succeed(spinner, "VM fully provisioned");
+
+      // Move keys into place now that nexus user exists
+      spinner = createSpinner("Delivering API keys...");
+      spinner.start();
+      await sshExec(config.sshPort, "mkdir -p /home/nexus/.nexus && mv /tmp/.nexus-env-keys /home/nexus/.nexus/.env.keys && chown -R nexus:nexus /home/nexus/.nexus && chmod 600 /home/nexus/.nexus/.env.keys");
+      succeed(spinner, "API keys delivered securely");
 
       // Phase 8: Server Health
       showPhase(8, TOTAL_PHASES, "NEXUS Server Startup");

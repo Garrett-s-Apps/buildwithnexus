@@ -50,26 +50,48 @@ export async function checkHealth(port: number, vmRunning: boolean): Promise<Hea
   return status;
 }
 
-export async function waitForServer(port: number, timeoutMs: number = 600_000): Promise<boolean> {
+export async function waitForServer(port: number, timeoutMs: number = 900_000): Promise<boolean> {
   const start = Date.now();
+  let lastLog = 0;
   while (Date.now() - start < timeoutMs) {
     try {
       const { stdout, code } = await sshExec(port, "curl -sf http://localhost:4200/health");
       if (code === 0 && stdout.includes("ok")) return true;
     } catch { /* not ready yet */ }
-    await new Promise((r) => setTimeout(r, 10_000));
+
+    const elapsed = Date.now() - start;
+    if (elapsed - lastLog >= 30_000) {
+      lastLog = elapsed;
+      try {
+        const { stdout } = await sshExec(port, "systemctl is-active nexus 2>/dev/null || echo 'starting...'");
+        process.stderr.write(`\n  [server ${Math.round(elapsed / 1000)}s] ${stdout.trim().slice(0, 120)}\n`);
+      } catch { /* ignore */ }
+    }
+
+    await new Promise((r) => setTimeout(r, 5_000));
   }
   return false;
 }
 
-export async function waitForCloudInit(port: number, timeoutMs: number = 900_000): Promise<boolean> {
+export async function waitForCloudInit(port: number, timeoutMs: number = 1_800_000): Promise<boolean> {
   const start = Date.now();
+  let lastLog = 0;
   while (Date.now() - start < timeoutMs) {
     try {
       const { code } = await sshExec(port, "test -f /var/lib/cloud/instance/boot-finished");
       if (code === 0) return true;
     } catch { /* not ready */ }
-    await new Promise((r) => setTimeout(r, 10_000));
+
+    const elapsed = Date.now() - start;
+    if (elapsed - lastLog >= 60_000) {
+      lastLog = elapsed;
+      try {
+        const { stdout } = await sshExec(port, "tail -1 /var/log/cloud-init-output.log 2>/dev/null || echo 'waiting...'");
+        process.stderr.write(`\n  [cloud-init ${Math.round(elapsed / 1000)}s] ${stdout.trim().slice(0, 120)}\n`);
+      } catch { /* ignore */ }
+    }
+
+    await new Promise((r) => setTimeout(r, 20_000));
   }
   return false;
 }

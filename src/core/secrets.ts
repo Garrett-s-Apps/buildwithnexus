@@ -3,9 +3,9 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { validateAllKeys, sealKeysFile, verifyKeysFile, audit, DlpViolation } from "./dlp.js";
 
-export const NEXUS_HOME = path.join(process.env.HOME || "~", ".buildwithnexus");
-export const CONFIG_PATH = path.join(NEXUS_HOME, "config.json");
-export const KEYS_PATH = path.join(NEXUS_HOME, ".env.keys");
+export const NEXUS_HOME = process.env.NEXUS_HOME || path.join(process.env.HOME || "~", ".buildwithnexus");
+export const CONFIG_PATH = process.env.NEXUS_CONFIG_PATH || path.join(NEXUS_HOME, "config.json");
+export const KEYS_PATH = process.env.NEXUS_KEYS_PATH || path.join(NEXUS_HOME, ".env.keys");
 
 export interface NexusConfig {
   vmRam: number;

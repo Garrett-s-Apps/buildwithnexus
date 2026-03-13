@@ -29,9 +29,17 @@ export async function rebuildSandbox(port: number): Promise<void> {
   log.step("Rebuilding Docker sandbox image...");
   await sshExec(
     port,
-    "docker build -t nexus-cli-sandbox /home/nexus/nexus/docker/cli-sandbox/",
+    "docker build --no-cache --pull -t nexus-cli-sandbox /home/nexus/nexus/docker/cli-sandbox/",
   );
   log.success("Docker sandbox image rebuilt");
+}
+
+export async function runSandboxed(port: number, image: string, command: string): Promise<{ stdout: string; stderr: string; code: number }> {
+  // Hardened Docker run: no new privileges, read-only root, drop all caps, no network
+  return sshExec(
+    port,
+    `docker run --rm --read-only --no-new-privileges --cap-drop ALL --network none ${image} sh -c ${JSON.stringify(command)}`,
+  );
 }
 
 export async function getDockerContainers(

@@ -81,9 +81,13 @@ export function addSshConfig(port: number): void {
 
 export async function waitForSsh(port: number, timeoutMs: number = 300_000): Promise<boolean> {
   const start = Date.now();
+  let attempt = 0;
+  // Exponential backoff: 3s → 6s → 12s → 24s → 30s max
+  const backoffMs = (n: number) => Math.min(3000 * Math.pow(2, n), 30_000);
+
   while (Date.now() - start < timeoutMs) {
+    const ssh = new NodeSSH();
     try {
-      const ssh = new NodeSSH();
       await ssh.connect({
         host: "localhost",
         port,
@@ -95,7 +99,12 @@ export async function waitForSsh(port: number, timeoutMs: number = 300_000): Pro
       ssh.dispose();
       return true;
     } catch {
-      await new Promise((r) => setTimeout(r, 5000));
+      // Ensure connection is cleaned up before retrying
+      try { ssh.dispose(); } catch { /* already disposed */ }
+      const delay = backoffMs(attempt++);
+      const remaining = timeoutMs - (Date.now() - start);
+      if (remaining <= 0) break;
+      await new Promise((r) => setTimeout(r, Math.min(delay, remaining)));
     }
   }
   return false;

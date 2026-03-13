@@ -30,9 +30,13 @@ export const statusCommand = new Command("status")
     console.log("");
     console.log(`  ${check(health.vmRunning)}  VM         ${health.vmRunning ? chalk.green("running") + chalk.dim(` (PID ${getVmPid()})`) : chalk.red("stopped")}`);
     console.log(`  ${check(health.sshReady)}  SSH        ${health.sshReady ? chalk.green("connected") + chalk.dim(` (port ${config.sshPort})`) : chalk.red("unreachable")}`);
-    console.log(`  ${check(health.dockerReady)}  Docker     ${health.dockerReady ? chalk.green("ready") : chalk.red("not ready")}`);
-    console.log(`  ${check(health.serverHealthy)}  Server     ${health.serverHealthy ? chalk.green("healthy") + chalk.dim(` (port ${config.httpPort})`) : chalk.red("unhealthy")}`);
+    console.log(`  ${check(health.dockerReady)}  Docker     ${health.dockerReady ? chalk.green("ready") + (health.dockerVersion ? chalk.dim(` v${health.dockerVersion}`) : "") : chalk.red("not ready")}`);
+    console.log(`  ${check(health.serverHealthy)}  Server     ${health.serverHealthy ? chalk.green("healthy") + chalk.dim(` (port ${config.httpPort})`) + (health.serverVersion ? chalk.dim(` v${health.serverVersion}`) : "") : chalk.red("unhealthy")}`);
     console.log(`  ${check(!!health.tunnelUrl)}  Tunnel     ${health.tunnelUrl ? chalk.green(health.tunnelUrl) : chalk.dim("not active")}`);
+    if (health.diskUsagePercent !== null) {
+      const diskOk = health.diskUsagePercent < 85;
+      console.log(`  ${check(diskOk)}  Disk       ${diskOk ? chalk.green(`${health.diskUsagePercent}% used`) : chalk.yellow(`${health.diskUsagePercent}% used — consider cleanup`)}`);
+    }
     console.log("");
 
     if (health.serverHealthy) {

@@ -75,14 +75,30 @@ function parseSSEData(raw: string): AgentEvent[] {
   return events;
 }
 
+export interface EventStreamStatus {
+  active: boolean;
+  consecutiveErrors: number;
+  lastError: string | null;
+}
+
 export class EventStream {
   private active = false;
   private lastId = "0";
   private onEvent: (event: AgentEvent) => void;
   private pollInterval: ReturnType<typeof setInterval> | null = null;
+  private consecutiveErrors = 0;
+  private lastError: string | null = null;
 
   constructor(onEvent: (event: AgentEvent) => void) {
     this.onEvent = onEvent;
+  }
+
+  getStatus(): EventStreamStatus {
+    return {
+      active: this.active,
+      consecutiveErrors: this.consecutiveErrors,
+      lastError: this.lastError,
+    };
   }
 
   async start(): Promise<void> {
@@ -99,14 +115,24 @@ export class EventStream {
           `curl -sf -H 'Last-Event-ID: ${this.lastId}' http://localhost:4200/events?timeout=1 2>/dev/null || true`,
         );
         if (code === 0 && stdout.trim()) {
+          this.consecutiveErrors = 0;
+          this.lastError = null;
           const events = parseSSEData(stdout);
           for (const event of events) {
             if (event.id) this.lastId = event.id;
             this.onEvent(event);
           }
         }
-      } catch {
-        // Connection failed — silent retry
+      } catch (err) {
+        this.consecutiveErrors++;
+        this.lastError = err instanceof Error ? err.message : String(err);
+        // Emit error event after sustained failures so callers can surface it
+        if (this.consecutiveErrors >= 5) {
+          this.onEvent({
+            type: "error",
+            content: `Event stream disconnected after ${this.consecutiveErrors} attempts: ${this.lastError}`,
+          });
+        }
       }
     }, 2000);
   }

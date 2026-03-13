@@ -19,4 +19,11 @@ export const log = {
   detail(label: string, value: string): void {
     console.log(chalk.dim("    " + label + ": ") + value);
   },
+  progress(current: number, total: number, label: string): void {
+    const pct = Math.round((current / total) * 100);
+    const filled = Math.round((current / total) * 20);
+    const bar = chalk.cyan("█".repeat(filled)) + chalk.dim("░".repeat(20 - filled));
+    process.stdout.write(`\r  [${bar}] ${chalk.bold(`${pct}%`)} ${chalk.dim(label)}`);
+    if (current >= total) process.stdout.write("\n");
+  },
 };

@@ -6,6 +6,11 @@ export interface HealthStatus {
   dockerReady: boolean;
   serverHealthy: boolean;
   tunnelUrl: string | null;
+  dockerVersion: string | null;
+  serverVersion: string | null;
+  diskUsagePercent: number | null;
+  uptimeSeconds: number | null;
+  lastChecked: string;
 }
 
 export async function checkHealth(port: number, vmRunning: boolean): Promise<HealthStatus> {
@@ -15,6 +20,11 @@ export async function checkHealth(port: number, vmRunning: boolean): Promise<Hea
     dockerReady: false,
     serverHealthy: false,
     tunnelUrl: null,
+    dockerVersion: null,
+    serverVersion: null,
+    diskUsagePercent: null,
+    uptimeSeconds: null,
+    lastChecked: new Date().toISOString(),
   };
 
   if (!vmRunning) return status;
@@ -27,17 +37,38 @@ export async function checkHealth(port: number, vmRunning: boolean): Promise<Hea
     return status;
   }
 
-  // Check Docker
+  // Check Docker (capture version)
   try {
-    const { code } = await sshExec(port, "docker version --format '{{.Server.Version}}'");
-    status.dockerReady = code === 0;
+    const { stdout, code } = await sshExec(port, "docker version --format '{{.Server.Version}}'");
+    status.dockerReady = code === 0 && stdout.trim().length > 0;
+    if (status.dockerReady) status.dockerVersion = stdout.trim();
   } catch { /* not ready */ }
 
-  // Check NEXUS server
+  // Check NEXUS server (capture version if exposed)
   try {
     const { stdout, code } = await sshExec(port, "curl -sf http://localhost:4200/health");
     status.serverHealthy = code === 0 && stdout.includes("ok");
+    if (status.serverHealthy) {
+      try {
+        const parsed = JSON.parse(stdout) as Record<string, unknown>;
+        if (typeof parsed.version === "string") status.serverVersion = parsed.version;
+      } catch { /* plain-text ok response */ }
+    }
   } catch { /* not ready */ }
+
+  // Check disk usage
+  try {
+    const { stdout } = await sshExec(port, "df / --output=pcent | tail -1 | tr -dc '0-9'");
+    const pct = parseInt(stdout.trim(), 10);
+    if (!isNaN(pct)) status.diskUsagePercent = pct;
+  } catch { /* ignore */ }
+
+  // Check uptime
+  try {
+    const { stdout } = await sshExec(port, "awk '{print int($1)}' /proc/uptime 2>/dev/null");
+    const up = parseInt(stdout.trim(), 10);
+    if (!isNaN(up)) status.uptimeSeconds = up;
+  } catch { /* ignore */ }
 
   // Check tunnel
   try {
@@ -53,6 +84,10 @@ export async function checkHealth(port: number, vmRunning: boolean): Promise<Hea
 export async function waitForServer(port: number, timeoutMs: number = 900_000): Promise<boolean> {
   const start = Date.now();
   let lastLog = 0;
+  let attempt = 0;
+  // Exponential backoff: 3s → 6s → 12s → 30s max
+  const backoffMs = (n: number) => Math.min(3000 * Math.pow(2, n), 30_000);
+
   while (Date.now() - start < timeoutMs) {
     try {
       const { stdout, code } = await sshExec(port, "curl -sf http://localhost:4200/health");
@@ -68,7 +103,10 @@ export async function waitForServer(port: number, timeoutMs: number = 900_000): 
       } catch { /* ignore */ }
     }
 
-    await new Promise((r) => setTimeout(r, 5_000));
+    const delay = backoffMs(attempt++);
+    const remaining = timeoutMs - (Date.now() - start);
+    if (remaining <= 0) break;
+    await new Promise((r) => setTimeout(r, Math.min(delay, remaining)));
   }
   return false;
 }
@@ -76,6 +114,10 @@ export async function waitForServer(port: number, timeoutMs: number = 900_000): 
 export async function waitForCloudInit(port: number, timeoutMs: number = 1_800_000): Promise<boolean> {
   const start = Date.now();
   let lastLog = 0;
+  let attempt = 0;
+  // Exponential backoff: 3s → 6s → 12s → 30s max (cloud-init takes minutes, cap keeps progress visible)
+  const backoffMs = (n: number) => Math.min(3000 * Math.pow(2, n), 30_000);
+
   while (Date.now() - start < timeoutMs) {
     try {
       const { code } = await sshExec(port, "test -f /var/lib/cloud/instance/boot-finished");
@@ -91,7 +133,10 @@ export async function waitForCloudInit(port: number, timeoutMs: number = 1_800_0
       } catch { /* ignore */ }
     }
 
-    await new Promise((r) => setTimeout(r, 20_000));
+    const delay = backoffMs(attempt++);
+    const remaining = timeoutMs - (Date.now() - start);
+    if (remaining <= 0) break;
+    await new Promise((r) => setTimeout(r, Math.min(delay, remaining)));
   }
   return false;
 }

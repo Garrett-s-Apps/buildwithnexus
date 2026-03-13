@@ -19,7 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "prepublishOnly": "npm run build && npm run bundle"
+    "prepublishOnly": "npm run build"
   },
   "engines": {
     "node": ">=18"

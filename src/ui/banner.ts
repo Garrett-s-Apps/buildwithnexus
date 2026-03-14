@@ -18,9 +18,8 @@ function getVersion(): string {
     const packagePath = join(__dirname, "..", "package.json");
     const packageJson = JSON.parse(readFileSync(packagePath, "utf-8"));
     return packageJson.version;
-  } catch (e) {
-    console.error(`[DEBUG] getVersion() failed: ${e instanceof Error ? e.message : String(e)}`);
-    return "0.5.16"; // fallback - should be bumped with each release
+  } catch {
+    return "0.5.17"; // fallback
   }
 }
 

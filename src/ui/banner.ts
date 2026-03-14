@@ -14,12 +14,13 @@ const BANNER = `
 function getVersion(): string {
   try {
     const __dirname = dirname(fileURLToPath(import.meta.url));
-    // In dist: __dirname is dist/ui, package.json is at dist/../../package.json
-    const packagePath = join(__dirname, "..", "..", "package.json");
+    // When bundled: __dirname is dist/, package.json is at ../package.json
+    const packagePath = join(__dirname, "..", "package.json");
     const packageJson = JSON.parse(readFileSync(packagePath, "utf-8"));
     return packageJson.version;
   } catch (e) {
-    return "0.5.15"; // fallback
+    console.error(`[DEBUG] getVersion() failed: ${e instanceof Error ? e.message : String(e)}`);
+    return "0.5.16"; // fallback - should be bumped with each release
   }
 }
 

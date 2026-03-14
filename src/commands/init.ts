@@ -24,7 +24,7 @@ import {
   stopVm,
   type ResolvedPorts,
 } from "../core/qemu.js";
-import { generateSshKey, addSshConfig, waitForSsh, getPubKey, sshUploadFile } from "../core/ssh.js";
+import { generateSshKey, addSshConfig, waitForSsh, getPubKey, sshUploadFile, getKeyPath } from "../core/ssh.js";
 import { renderCloudInit, createCloudInitIso } from "../core/cloudinit.js";
 import { waitForCloudInit, waitForServer } from "../core/health.js";
 import { installCloudflared, startTunnel } from "../core/tunnel.js";
@@ -42,11 +42,21 @@ import { sshExec } from "../core/ssh.js";
 
 function getReleaseTarball(): string {
   const dir = path.dirname(fileURLToPath(import.meta.url));
-  const tarballPath = path.join(dir, "nexus-release.tar.gz");
-  if (fs.existsSync(tarballPath)) return tarballPath;
-  const rootPath = path.resolve(dir, "..", "dist", "nexus-release.tar.gz");
-  if (fs.existsSync(rootPath)) return rootPath;
-  throw new Error("nexus-release.tar.gz not found. Run: npm run bundle");
+  // Check in multiple locations
+  const possiblePaths = [
+    // Current directory (dev)
+    path.join(dir, "nexus-release.tar.gz"),
+    // dist folder (when built)
+    path.resolve(dir, "..", "dist", "nexus-release.tar.gz"),
+    // node_modules location (when installed from npm)
+    path.resolve(dir, "..", "nexus-release.tar.gz"),
+  ];
+
+  for (const tarballPath of possiblePaths) {
+    if (fs.existsSync(tarballPath)) return tarballPath;
+  }
+
+  throw new Error("nexus-release.tar.gz not found. Run: npm install buildwithnexus@latest");
 }
 
 function getCloudInitTemplate(): string {
@@ -172,6 +182,9 @@ const phases: Phase[] = [
       const { config } = ctx as InitContext;
       await withSpinner(spinner, "Generating SSH key...", async () => {
         await generateSshKey();
+        // Delete stale host key pin so new VM's key gets re-pinned
+        const pinFile = path.join(path.dirname(getKeyPath()), "vm_host_key.pin");
+        try { fs.unlinkSync(pinFile); } catch { /* not found is fine */ }
         addSshConfig(config.sshPort);
       });
     },

@@ -1,0 +1,132 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1773437650654,
+  "projectRoot": "/Users/garretteaglin/repos/buildwithnexus",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": ">=18",
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "vitest",
+        "version": "4.0.18",
+        "category": "testing"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": "Node.js 18"
+  },
+  "build": {
+    "buildCommand": "npm run build",
+    "testCommand": "npm test",
+    "lintCommand": "npm run lint",
+    "devCommand": "npm run dev",
+    "scripts": {
+      "build": "tsup",
+      "bundle": "bash scripts/bundle-release.sh",
+      "dev": "tsup --watch",
+      "lint": "tsc --noEmit",
+      "test": "vitest run",
+      "test:watch": "vitest",
+      "test:coverage": "vitest run --coverage",
+      "prepublishOnly": "npm run build && NEXUS_SRC=/Users/garretteaglin/Projects/nexus npm run bundle"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": "ES modules",
+    "testPattern": "*.test.ts",
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "dist": {
+      "path": "dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 1,
+      "lastAccessed": 1773437650630,
+      "keyFiles": [
+        "bin.js"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 1,
+      "lastAccessed": 1773437650630,
+      "keyFiles": [
+        "bundle-release.sh"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 2,
+      "lastAccessed": 1773437650635,
+      "keyFiles": [
+        "bin.ts",
+        "cli.ts"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 3,
+      "lastAccessed": 1773437650636,
+      "keyFiles": [
+        "dlp.test.ts",
+        "platform.test.ts",
+        "secrets.test.ts"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/ui/banner.ts",
+      "accessCount": 4,
+      "lastAccessed": 1773506953342,
+      "type": "file"
+    },
+    {
+      "path": "src/cli.ts",
+      "accessCount": 2,
+      "lastAccessed": 1773506973992,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 1,
+      "lastAccessed": 1773506888279,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

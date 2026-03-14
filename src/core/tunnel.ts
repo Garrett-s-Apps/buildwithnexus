@@ -23,16 +23,16 @@ export async function installCloudflared(sshPort: number, arch: "arm64" | "x64")
 
 export async function startTunnel(sshPort: number): Promise<string | null> {
   // Use a restricted log path under nexus home instead of world-readable /tmp
-  await sshExec(sshPort, [
-    "install -m 600 /dev/null /home/nexus/.nexus/tunnel.log",
-    "&& nohup cloudflared tunnel --no-autoupdate --url http://localhost:4200",
-    "> /home/nexus/.nexus/tunnel.log 2>&1 &",
-    "disown",
-  ].join(" "));
+  // bash -c ensures nohup + & work correctly (sh may not support job control builtins)
+  await sshExec(sshPort,
+    "install -m 600 /dev/null /home/nexus/.nexus/tunnel.log" +
+    " && bash -c 'nohup cloudflared tunnel --no-autoupdate --url http://localhost:4200" +
+    " > /home/nexus/.nexus/tunnel.log 2>&1 &'",
+  );
 
-  // Wait for URL to appear in logs (up to 60s — tunnel setup can be slow)
+  // Wait for URL to appear in logs (up to 120s — cloudflared can be slow on first run)
   const start = Date.now();
-  while (Date.now() - start < 60_000) {
+  while (Date.now() - start < 120_000) {
     try {
       const { stdout } = await sshExec(sshPort, "grep -oE 'https://[a-z0-9-]+\\.trycloudflare\\.com' /home/nexus/.nexus/tunnel.log 2>/dev/null | head -1");
       if (stdout.includes("https://")) {

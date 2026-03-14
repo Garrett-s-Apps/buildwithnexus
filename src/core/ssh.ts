@@ -79,32 +79,24 @@ export function addSshConfig(port: number): void {
   }
 }
 
-export async function waitForSsh(port: number, timeoutMs: number = 300_000): Promise<boolean> {
-  const start = Date.now();
-  let attempt = 0;
-  // Exponential backoff: 3s → 6s → 12s → 24s → 30s max
-  const backoffMs = (n: number) => Math.min(3000 * Math.pow(2, n), 30_000);
 
+export async function waitForSsh(port: number, timeoutMs: number = 900_000): Promise<boolean> {
+  const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    const ssh = new NodeSSH();
     try {
+      const ssh = new NodeSSH();
       await ssh.connect({
         host: "localhost",
         port,
         username: "nexus",
         privateKeyPath: SSH_KEY,
-        readyTimeout: 5000,
+        readyTimeout: 10_000,
         hostVerifier: getHostVerifier(),
       });
       ssh.dispose();
       return true;
     } catch {
-      // Ensure connection is cleaned up before retrying
-      try { ssh.dispose(); } catch { /* already disposed */ }
-      const delay = backoffMs(attempt++);
-      const remaining = timeoutMs - (Date.now() - start);
-      if (remaining <= 0) break;
-      await new Promise((r) => setTimeout(r, Math.min(delay, remaining)));
+      await new Promise((r) => setTimeout(r, 10_000));
     }
   }
   return false;
@@ -118,6 +110,7 @@ export async function sshExec(port: number, command: string): Promise<{ stdout: 
     port,
     username: "nexus",
     privateKeyPath: SSH_KEY,
+    readyTimeout: 30_000,
     hostVerifier: getHostVerifier(),
   });
   const result = await ssh.execCommand(command);

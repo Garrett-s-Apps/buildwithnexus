@@ -1,4 +1,7 @@
 import { Command } from "commander";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { initCommand } from "./commands/init.js";
 import { startCommand } from "./commands/start.js";
 import { stopCommand } from "./commands/stop.js";
@@ -13,10 +16,21 @@ import { brainstormCommand } from "./commands/brainstorm.js";
 import { ninetyNineCommand } from "./commands/ninety-nine.js";
 import { shellCommand } from "./commands/shell.js";
 
+function getVersionStatic(): string {
+  try {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const packagePath = join(__dirname, "..", "package.json");
+    const packageJson = JSON.parse(readFileSync(packagePath, "utf-8"));
+    return packageJson.version;
+  } catch {
+    return "0.5.16";
+  }
+}
+
 export const cli = new Command()
   .name("buildwithnexus")
   .description("Auto-scaffold and launch a fully autonomous NEXUS runtime")
-  .version("0.3.1");
+  .version(getVersionStatic());
 
 cli.addCommand(initCommand);
 cli.addCommand(startCommand);

@@ -19,7 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "postinstall": "npm run build && NEXUS_SRC=${NEXUS_SRC:-/Users/garretteaglin/Projects/nexus} npm run bundle || true",
+    "postinstall": "[ -d .git ] && npm run build && NEXUS_SRC=${NEXUS_SRC:-../nexus} npm run bundle || true",
     "prepublishOnly": "npm run build && NEXUS_SRC=/Users/garretteaglin/Projects/nexus npm run bundle"
   },
   "engines": {

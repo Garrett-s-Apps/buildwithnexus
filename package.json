@@ -1,6 +1,6 @@
 {
   "name": "buildwithnexus",
-  "version": "0.5.16",
+  "version": "0.5.17",
   "description": "Launch an autonomous AI runtime with triple-nested VM isolation in one command",
   "type": "module",
   "bin": {
@@ -19,6 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "postinstall": "npm run build && NEXUS_SRC=${NEXUS_SRC:-/Users/garretteaglin/Projects/nexus} npm run bundle || true",
     "prepublishOnly": "npm run build && NEXUS_SRC=/Users/garretteaglin/Projects/nexus npm run bundle"
   },
   "engines": {

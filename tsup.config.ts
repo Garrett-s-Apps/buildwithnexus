@@ -30,5 +30,13 @@ export default defineConfig({
     // Copy non-TS assets that init needs at runtime
     mkdirSync("dist/templates", { recursive: true });
     copyFileSync("src/templates/cloud-init.yaml.ejs", "dist/templates/cloud-init.yaml.ejs");
+
+    // Warn if tarball is missing (it's critical for 'buildwithnexus init')
+    const tarballPath = "dist/nexus-release.tar.gz";
+    try {
+      readFileSync(tarballPath);
+    } catch {
+      console.warn(`\n⚠️  WARNING: ${tarballPath} not found. Run: npm run bundle\n`);
+    }
   },
 });

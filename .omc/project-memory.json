@@ -117,20 +117,20 @@
     },
     {
       "path": "package.json",
-      "accessCount": 7,
-      "lastAccessed": 1773507400308,
+      "accessCount": 8,
+      "lastAccessed": 1773507449631,
+      "type": "file"
+    },
+    {
+      "path": "tsup.config.ts",
+      "accessCount": 8,
+      "lastAccessed": 1773507468679,
       "type": "file"
     },
     {
       "path": "src/cli.ts",
       "accessCount": 6,
       "lastAccessed": 1773507412945,
-      "type": "file"
-    },
-    {
-      "path": "tsup.config.ts",
-      "accessCount": 4,
-      "lastAccessed": 1773507407238,
       "type": "file"
     },
     {

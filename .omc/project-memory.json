@@ -110,63 +110,69 @@
   },
   "hotPaths": [
     {
-      "path": "src/ui/banner.ts",
-      "accessCount": 9,
-      "lastAccessed": 1773507423966,
-      "type": "file"
-    },
-    {
       "path": "package.json",
-      "accessCount": 8,
-      "lastAccessed": 1773507449631,
+      "accessCount": 12,
+      "lastAccessed": 1773507744108,
       "type": "file"
     },
     {
       "path": "tsup.config.ts",
-      "accessCount": 8,
-      "lastAccessed": 1773507468679,
+      "accessCount": 12,
+      "lastAccessed": 1773507828440,
       "type": "file"
     },
     {
-      "path": "src/cli.ts",
-      "accessCount": 6,
-      "lastAccessed": 1773507412945,
+      "path": "src/ui/banner.ts",
+      "accessCount": 10,
+      "lastAccessed": 1773507534737,
       "type": "file"
     },
     {
       "path": "",
-      "accessCount": 2,
-      "lastAccessed": 1773507323854,
+      "accessCount": 9,
+      "lastAccessed": 1773507751382,
       "type": "directory"
     },
     {
-      "path": "src/core/update-notifier.ts",
-      "accessCount": 2,
-      "lastAccessed": 1773507337230,
+      "path": "src/cli.ts",
+      "accessCount": 7,
+      "lastAccessed": 1773507534513,
       "type": "file"
     },
     {
       "path": "src",
-      "accessCount": 2,
-      "lastAccessed": 1773507338330,
+      "accessCount": 6,
+      "lastAccessed": 1773507542419,
       "type": "directory"
     },
     {
       "path": "src/bin.ts",
-      "accessCount": 2,
-      "lastAccessed": 1773507343362,
+      "accessCount": 4,
+      "lastAccessed": 1773507711547,
       "type": "file"
     },
     {
-      "path": "src/commands/init.ts",
-      "accessCount": 1,
-      "lastAccessed": 1773507329731,
+      "path": "src/core/update-notifier.ts",
+      "accessCount": 3,
+      "lastAccessed": 1773507513914,
       "type": "file"
     },
     {
       "path": "scripts/bundle-release.sh",
+      "accessCount": 3,
+      "lastAccessed": 1773507685583,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/init.ts",
+      "accessCount": 3,
+      "lastAccessed": 1773507685972,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/update.ts",
       "accessCount": 1,
-      "lastAccessed": 1773507330239,
+      "lastAccessed": 1773507548610,
       "type": "file"
     }
   ],

@@ -9,7 +9,7 @@ export default defineConfig({
   format: ["esm"],
   target: "node18",
   outDir: "dist",
-  clean: true,
+  clean: false,  // Preserve tarball across builds; remove JS manually in onSuccess if needed
   splitting: false,
   sourcemap: false,
   dts: false,

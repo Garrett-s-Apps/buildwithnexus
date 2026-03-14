@@ -23,7 +23,7 @@ function getVersionStatic(): string {
     const packageJson = JSON.parse(readFileSync(packagePath, "utf-8"));
     return packageJson.version;
   } catch {
-    return "0.5.17";
+    return typeof __BUILDWITHNEXUS_VERSION__ !== "undefined" ? __BUILDWITHNEXUS_VERSION__ : "0.0.0-unknown";
   }
 }
 

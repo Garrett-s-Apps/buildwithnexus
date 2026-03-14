@@ -111,20 +111,62 @@
   "hotPaths": [
     {
       "path": "src/ui/banner.ts",
-      "accessCount": 4,
-      "lastAccessed": 1773506953342,
-      "type": "file"
-    },
-    {
-      "path": "src/cli.ts",
-      "accessCount": 2,
-      "lastAccessed": 1773506973992,
+      "accessCount": 9,
+      "lastAccessed": 1773507423966,
       "type": "file"
     },
     {
       "path": "package.json",
+      "accessCount": 7,
+      "lastAccessed": 1773507400308,
+      "type": "file"
+    },
+    {
+      "path": "src/cli.ts",
+      "accessCount": 6,
+      "lastAccessed": 1773507412945,
+      "type": "file"
+    },
+    {
+      "path": "tsup.config.ts",
+      "accessCount": 4,
+      "lastAccessed": 1773507407238,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 2,
+      "lastAccessed": 1773507323854,
+      "type": "directory"
+    },
+    {
+      "path": "src/core/update-notifier.ts",
+      "accessCount": 2,
+      "lastAccessed": 1773507337230,
+      "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 2,
+      "lastAccessed": 1773507338330,
+      "type": "directory"
+    },
+    {
+      "path": "src/bin.ts",
+      "accessCount": 2,
+      "lastAccessed": 1773507343362,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/init.ts",
       "accessCount": 1,
-      "lastAccessed": 1773506888279,
+      "lastAccessed": 1773507329731,
+      "type": "file"
+    },
+    {
+      "path": "scripts/bundle-release.sh",
+      "accessCount": 1,
+      "lastAccessed": 1773507330239,
       "type": "file"
     }
   ],

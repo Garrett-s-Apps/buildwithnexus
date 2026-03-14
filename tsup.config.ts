@@ -1,5 +1,8 @@
 import { defineConfig } from "tsup";
 import { writeFileSync, readFileSync, chmodSync, mkdirSync, copyFileSync } from "node:fs";
+import { readFileSync as readSync } from "node:fs";
+
+const packageJson = JSON.parse(readSync("package.json", "utf-8"));
 
 export default defineConfig({
   entry: ["src/bin.ts"],
@@ -10,6 +13,9 @@ export default defineConfig({
   splitting: false,
   sourcemap: false,
   dts: false,
+  define: {
+    __BUILDWITHNEXUS_VERSION__: JSON.stringify(packageJson.version),
+  },
   // Don't bundle dependencies — they have CJS internals that break ESM bundling
   external: [
     "commander", "chalk", "ora", "inquirer", "@inquirer/prompts",

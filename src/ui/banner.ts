@@ -1,4 +1,7 @@
 import chalk from "chalk";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const BANNER = `
   ╔══════════════════════════════════════════════╗
@@ -8,9 +11,21 @@ const BANNER = `
   ╚══════════════════════════════════════════════╝
 `;
 
+function getVersion(): string {
+  try {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    // In dist: __dirname is dist/ui, package.json is at dist/../../package.json
+    const packagePath = join(__dirname, "..", "..", "package.json");
+    const packageJson = JSON.parse(readFileSync(packagePath, "utf-8"));
+    return packageJson.version;
+  } catch (e) {
+    return "0.5.15"; // fallback
+  }
+}
+
 export function showBanner(): void {
   console.log(BANNER);
-  console.log(chalk.dim("  v0.3.1 · buildwithnexus.dev\n"));
+  console.log(chalk.dim(`  v${getVersion()} · buildwithnexus.dev\n`));
 }
 
 export function showPhase(phase: number, total: number, description: string): void {

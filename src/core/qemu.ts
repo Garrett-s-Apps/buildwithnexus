@@ -241,10 +241,10 @@ export function isVmRunning(): boolean {
   if (!pid) return false;
   try {
     process.kill(pid, 0);
-    return true;
   } catch {
     return false;
   }
+  return isQemuPid(pid);
 }
 
 export function stopVm(): void {

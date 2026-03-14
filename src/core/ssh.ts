@@ -1,10 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import net from "node:net";
 import { execa } from "execa";
 import { NodeSSH } from "node-ssh";
 import { NEXUS_HOME } from "./secrets.js";
 import { audit, redact, scrubEnv } from "./dlp.js";
+import { isVmRunning } from "./qemu.js";
 
 const SSH_DIR = path.join(NEXUS_HOME, "ssh");
 const SSH_KEY = path.join(SSH_DIR, "id_nexus_vm");
@@ -80,24 +82,63 @@ export function addSshConfig(port: number): void {
 }
 
 
+async function isTcpPortOpen(port: number, timeoutMs: number = 2000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ host: "localhost", port });
+    socket.setTimeout(timeoutMs);
+    socket.on("connect", () => { socket.destroy(); resolve(true); });
+    socket.on("error", () => resolve(false));
+    socket.on("timeout", () => { socket.destroy(); resolve(false); });
+  });
+}
+
 export async function waitForSsh(port: number, timeoutMs: number = 900_000): Promise<boolean> {
   const start = Date.now();
+  let lastLog = 0;
+  let attempt = 0;
+  let lastError = "";
+  // Exponential backoff: 3s -> 6s -> 12s -> 30s cap
+  const backoffMs = (n: number) => Math.min(3000 * Math.pow(2, n), 30_000);
+
   while (Date.now() - start < timeoutMs) {
-    try {
-      const ssh = new NodeSSH();
-      await ssh.connect({
-        host: "localhost",
-        port,
-        username: "nexus",
-        privateKeyPath: SSH_KEY,
-        readyTimeout: 10_000,
-        hostVerifier: getHostVerifier(),
-      });
-      ssh.dispose();
-      return true;
-    } catch {
-      await new Promise((r) => setTimeout(r, 10_000));
+    // QEMU liveness guard: fail fast if VM is dead
+    if (!isVmRunning()) {
+      process.stderr.write(`\n  [ssh] QEMU process is not running — aborting SSH wait\n`);
+      return false;
     }
+
+    // TCP pre-probe: skip SSH handshake if port is not even open
+    const tcpOpen = await isTcpPortOpen(port);
+    if (!tcpOpen) {
+      lastError = "ECONNREFUSED (TCP pre-probe)";
+    } else {
+      try {
+        const ssh = new NodeSSH();
+        await ssh.connect({
+          host: "localhost",
+          port,
+          username: "nexus",
+          privateKeyPath: SSH_KEY,
+          readyTimeout: 10_000,
+          hostVerifier: getHostVerifier(),
+        });
+        ssh.dispose();
+        return true;
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    const elapsed = Date.now() - start;
+    if (elapsed - lastLog >= 30_000) {
+      lastLog = elapsed;
+      process.stderr.write(`\n  [ssh ${Math.round(elapsed / 1000)}s] waiting for SSH on port ${port} — ${lastError}\n`);
+    }
+
+    const delay = backoffMs(attempt++);
+    const remaining = timeoutMs - (Date.now() - start);
+    if (remaining <= 0) break;
+    await new Promise((r) => setTimeout(r, Math.min(delay, remaining)));
   }
   return false;
 }

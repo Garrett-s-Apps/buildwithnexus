@@ -114,8 +114,8 @@
   "hotPaths": [
     {
       "path": "src/core/qemu.ts",
-      "accessCount": 4,
-      "lastAccessed": 1773551948562,
+      "accessCount": 6,
+      "lastAccessed": 1773552442052,
       "type": "file"
     },
     {

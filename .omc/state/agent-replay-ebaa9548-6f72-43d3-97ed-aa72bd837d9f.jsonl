@@ -48,3 +48,5 @@
 {"t":0,"agent":"a733c19","agent_type":"analyst","event":"agent_start","parent_mode":"none"}
 {"t":0,"agent":"a733c19","agent_type":"analyst","event":"agent_stop","success":true,"duration_ms":123947}
 {"t":0,"agent":"a7e327d","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"system","event":"keyword_detected","keyword":"autopilot"}
+{"t":0,"agent":"system","event":"mode_change","mode_from":"none","mode_to":"autopilot"}

@@ -113,16 +113,16 @@
   },
   "hotPaths": [
     {
+      "path": "src/core/qemu.ts",
+      "accessCount": 4,
+      "lastAccessed": 1773551948562,
+      "type": "file"
+    },
+    {
       "path": "src/commands/init.ts",
       "accessCount": 3,
       "lastAccessed": 1773545020584,
       "type": "directory"
-    },
-    {
-      "path": "src/core/qemu.ts",
-      "accessCount": 3,
-      "lastAccessed": 1773545121448,
-      "type": "file"
     },
     {
       "path": "src/templates/cloud-init.yaml.ejs",

@@ -110,8 +110,7 @@ async function isTcpPortOpen(port: number, timeoutMs: number = 2000): Promise<bo
 }
 
 export async function probeVmReady(
-  port: number,
-  timeoutMs: number = 5000
+  port: number
 ): Promise<"not_reachable" | "sshd_up_user_missing" | "ready"> {
   // TCP pre-probe (port open?)
   if (!(await isTcpPortOpen(port))) {
@@ -132,9 +131,9 @@ export async function probeVmReady(
     ssh.dispose();
     return "ready";
   } catch (err) {
-    // Check if error is auth-related (user doesn't exist yet)
-    const errMsg = err instanceof Error ? err.message : String(err);
-    if (errMsg.includes("All configured authentication methods")) {
+    // Classify the error to distinguish transient from fatal conditions
+    const category = classifySshError(err instanceof Error ? err : new Error(String(err)));
+    if (category === SshErrorCategory.AuthFailure) {
       return "sshd_up_user_missing";
     }
     // Other errors (host key mismatch, timeout, etc.) → not ready yet

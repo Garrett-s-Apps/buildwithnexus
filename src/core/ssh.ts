@@ -14,6 +14,23 @@ const SSH_PUB_KEY = path.join(SSH_DIR, "id_nexus_vm.pub");
 const KNOWN_HOSTS = path.join(SSH_DIR, "known_hosts_nexus_vm");
 const PINNED_HOST_KEY = path.join(SSH_DIR, "vm_host_key.pin");
 
+enum SshErrorCategory {
+  Transient = "transient",
+  AuthFailure = "auth_failure",
+  HostKeyMismatch = "host_key_mismatch",
+  Timeout = "timeout",
+  Unknown = "unknown",
+}
+
+function classifySshError(err: Error): SshErrorCategory {
+  const msg = err.message || '';
+  if (msg.includes('All configured authentication methods')) return SshErrorCategory.AuthFailure;
+  if (msg.includes('ECONNREFUSED') || msg.includes('ECONNRESET')) return SshErrorCategory.Transient;
+  if (msg.includes('Host denied (verification failed)')) return SshErrorCategory.HostKeyMismatch;
+  if (msg.includes('Timed out')) return SshErrorCategory.Timeout;
+  return SshErrorCategory.Unknown;
+}
+
 function getHostVerifier(): (key: Buffer) => boolean {
   if (!fs.existsSync(PINNED_HOST_KEY)) {
     return (key: Buffer) => {
@@ -92,11 +109,45 @@ async function isTcpPortOpen(port: number, timeoutMs: number = 2000): Promise<bo
   });
 }
 
+export async function probeVmReady(
+  port: number,
+  timeoutMs: number = 5000
+): Promise<"not_reachable" | "sshd_up_user_missing" | "ready"> {
+  // TCP pre-probe (port open?)
+  if (!(await isTcpPortOpen(port))) {
+    return "not_reachable";
+  }
+
+  // Try to connect as nexus with key
+  try {
+    const ssh = new NodeSSH();
+    await ssh.connect({
+      host: "localhost",
+      port,
+      username: "nexus",
+      privateKeyPath: SSH_KEY,
+      readyTimeout: 3000,
+      hostVerifier: getHostVerifier(),
+    });
+    ssh.dispose();
+    return "ready";
+  } catch (err) {
+    // Check if error is auth-related (user doesn't exist yet)
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (errMsg.includes("All configured authentication methods")) {
+      return "sshd_up_user_missing";
+    }
+    // Other errors (host key mismatch, timeout, etc.) → not ready yet
+    return "not_reachable";
+  }
+}
+
 export async function waitForSsh(port: number, timeoutMs: number = 900_000): Promise<boolean> {
   const start = Date.now();
-  let lastLog = 0;
+  let lastLogAt = 0;
   let attempt = 0;
-  let lastError = "";
+  let lastCategory = "";
+  let firstErrorLogged = false;
   // Exponential backoff: 3s -> 6s -> 12s -> 30s cap
   const backoffMs = (n: number) => Math.min(3000 * Math.pow(2, n), 30_000);
 
@@ -107,39 +158,70 @@ export async function waitForSsh(port: number, timeoutMs: number = 900_000): Pro
       return false;
     }
 
-    // TCP pre-probe: skip SSH handshake if port is not even open
-    const tcpOpen = await isTcpPortOpen(port);
-    if (!tcpOpen) {
-      lastError = "ECONNREFUSED (TCP pre-probe)";
+    attempt++;
+
+    let probeResult: "not_reachable" | "sshd_up_user_missing" | "ready";
+    try {
+      probeResult = await probeVmReady(port);
+    } catch (err) {
+      // Classify unexpected errors from probeVmReady
+      const category = classifySshError(err instanceof Error ? err : new Error(String(err)));
+      if (category === SshErrorCategory.HostKeyMismatch) {
+        process.stderr.write(
+          `\n  [ssh] FATAL: Host key mismatch detected on port ${port}. ` +
+          `The VM host key does not match the pinned key. ` +
+          `Remove ${PINNED_HOST_KEY} if the VM was recreated.\n`
+        );
+        return false;
+      }
+      probeResult = "not_reachable";
+    }
+
+    if (probeResult === "ready") {
+      return true;
+    }
+
+    if (probeResult === "sshd_up_user_missing") {
+      lastCategory = "auth_pending";
+      if (!firstErrorLogged) {
+        firstErrorLogged = true;
+        process.stderr.write(
+          `\n  [ssh] SSH daemon active but nexus user not yet created (cloud-init in progress)\n`
+        );
+      }
     } else {
-      try {
-        const ssh = new NodeSSH();
-        await ssh.connect({
-          host: "localhost",
-          port,
-          username: "nexus",
-          privateKeyPath: SSH_KEY,
-          readyTimeout: 10_000,
-          hostVerifier: getHostVerifier(),
-        });
-        ssh.dispose();
-        return true;
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
+      // not_reachable
+      lastCategory = "port_not_reachable";
+      if (!firstErrorLogged) {
+        firstErrorLogged = true;
+        process.stderr.write(
+          `\n  [ssh] Port ${port} not reachable — waiting for VM to start SSH daemon\n`
+        );
       }
     }
 
     const elapsed = Date.now() - start;
-    if (elapsed - lastLog >= 30_000) {
-      lastLog = elapsed;
-      process.stderr.write(`\n  [ssh ${Math.round(elapsed / 1000)}s] waiting for SSH on port ${port} — ${lastError}\n`);
+    if (elapsed - lastLogAt >= 30_000) {
+      lastLogAt = elapsed;
+      const vmStatus = isVmRunning() ? "running" : "stopped";
+      const detail = lastCategory === "auth_pending"
+        ? "SSH daemon active but nexus user not yet created"
+        : "port not reachable";
+      process.stderr.write(
+        `\n  [ssh ${Math.round(elapsed / 1000)}s] attempt ${attempt} | category: ${lastCategory} | VM: ${vmStatus} | ${detail}\n`
+      );
     }
 
-    const delay = backoffMs(attempt++);
+    const delay = backoffMs(attempt - 1);
     const remaining = timeoutMs - (Date.now() - start);
     if (remaining <= 0) break;
     await new Promise((r) => setTimeout(r, Math.min(delay, remaining)));
   }
+
+  const totalElapsed = Math.round((Date.now() - start) / 1000);
+  process.stderr.write(
+    `\n  [ssh] Timed out after ${totalElapsed}s (${attempt} attempts) waiting for SSH on port ${port} — last category: ${lastCategory}\n`
+  );
   return false;
 }
 

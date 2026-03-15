@@ -185,7 +185,6 @@ const phases: Phase[] = [
         // Delete stale host key pin so new VM's key gets re-pinned
         const pinFile = path.join(path.dirname(getKeyPath()), "vm_host_key.pin");
         try { fs.unlinkSync(pinFile); } catch { /* not found is fine */ }
-        addSshConfig(config.sshPort);
       });
     },
   },
@@ -247,6 +246,7 @@ const phases: Phase[] = [
 
       // Update config with actual ports (may differ after conflict resolution)
       config.sshPort = resolvedPorts.ssh;
+      addSshConfig(config.sshPort);
       config.httpPort = resolvedPorts.http;
       config.httpsPort = resolvedPorts.https;
       saveConfig(config);

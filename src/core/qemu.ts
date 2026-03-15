@@ -199,7 +199,7 @@ export async function launchVm(
     "-m", `${ram}G`,
     "-smp", `${cpus}`,
     "-drive", `file=${diskPath},if=virtio,cache=writethrough`,
-    "-drive", `file=${initIsoPath},if=virtio,format=raw,cache=writethrough`,
+    "-drive", `file=${initIsoPath},media=cdrom,format=raw`,
     "-display", "none",
     "-serial", "none",
     "-net", "nic,model=virtio",

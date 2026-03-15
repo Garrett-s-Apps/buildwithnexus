@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1773437650654,
+  "lastScanned": 1773544996200,
   "projectRoot": "/Users/garretteaglin/repos/buildwithnexus",
   "techStack": {
     "languages": [
@@ -44,11 +44,12 @@
       "test": "vitest run",
       "test:watch": "vitest",
       "test:coverage": "vitest run --coverage",
-      "prepublishOnly": "npm run build && NEXUS_SRC=/Users/garretteaglin/Projects/nexus npm run bundle"
+      "postinstall": "[ -d .git ] && npm run build && NEXUS_SRC=${NEXUS_SRC:-../nexus} npm run bundle || true",
+      "prepublishOnly": "npm run build && ([ -d \"${NEXUS_SRC:-../nexus}\" ] && NEXUS_SRC=${NEXUS_SRC:-../nexus} npm run bundle || echo 'Note: NEXUS_SRC not available, using pre-built tarball if present') && ([ -f dist/nexus-release.tar.gz ] || (echo 'ERROR: nexus-release.tar.gz not found. Cannot publish without tarball required by buildwithnexus init' && exit 1))"
     }
   },
   "conventions": {
-    "namingStyle": null,
+    "namingStyle": "camelCase",
     "importStyle": "ES modules",
     "testPattern": "*.test.ts",
     "fileOrganization": null
@@ -71,17 +72,18 @@
     "dist": {
       "path": "dist",
       "purpose": "Distribution/build output",
-      "fileCount": 1,
-      "lastAccessed": 1773437650630,
+      "fileCount": 2,
+      "lastAccessed": 1773544996181,
       "keyFiles": [
-        "bin.js"
+        "bin.js",
+        "nexus-release.tar.gz"
       ]
     },
     "scripts": {
       "path": "scripts",
       "purpose": "Build/utility scripts",
       "fileCount": 1,
-      "lastAccessed": 1773437650630,
+      "lastAccessed": 1773544996181,
       "keyFiles": [
         "bundle-release.sh"
       ]
@@ -90,7 +92,7 @@
       "path": "src",
       "purpose": "Source code",
       "fileCount": 2,
-      "lastAccessed": 1773437650635,
+      "lastAccessed": 1773544996187,
       "keyFiles": [
         "bin.ts",
         "cli.ts"
@@ -99,80 +101,51 @@
     "tests": {
       "path": "tests",
       "purpose": "Test files",
-      "fileCount": 3,
-      "lastAccessed": 1773437650636,
+      "fileCount": 4,
+      "lastAccessed": 1773544996187,
       "keyFiles": [
         "dlp.test.ts",
         "platform.test.ts",
-        "secrets.test.ts"
+        "secrets.test.ts",
+        "ssh.test.ts"
       ]
     }
   },
   "hotPaths": [
     {
-      "path": "package.json",
-      "accessCount": 12,
-      "lastAccessed": 1773507744108,
-      "type": "file"
-    },
-    {
-      "path": "tsup.config.ts",
-      "accessCount": 12,
-      "lastAccessed": 1773507828440,
-      "type": "file"
-    },
-    {
-      "path": "src/ui/banner.ts",
-      "accessCount": 10,
-      "lastAccessed": 1773507534737,
-      "type": "file"
-    },
-    {
-      "path": "",
-      "accessCount": 9,
-      "lastAccessed": 1773507751382,
-      "type": "directory"
-    },
-    {
-      "path": "src/cli.ts",
-      "accessCount": 7,
-      "lastAccessed": 1773507534513,
-      "type": "file"
-    },
-    {
-      "path": "src",
-      "accessCount": 6,
-      "lastAccessed": 1773507542419,
-      "type": "directory"
-    },
-    {
-      "path": "src/bin.ts",
-      "accessCount": 4,
-      "lastAccessed": 1773507711547,
-      "type": "file"
-    },
-    {
-      "path": "src/core/update-notifier.ts",
-      "accessCount": 3,
-      "lastAccessed": 1773507513914,
-      "type": "file"
-    },
-    {
-      "path": "scripts/bundle-release.sh",
-      "accessCount": 3,
-      "lastAccessed": 1773507685583,
-      "type": "file"
-    },
-    {
       "path": "src/commands/init.ts",
       "accessCount": 3,
-      "lastAccessed": 1773507685972,
+      "lastAccessed": 1773545020584,
+      "type": "directory"
+    },
+    {
+      "path": "src/core/qemu.ts",
+      "accessCount": 3,
+      "lastAccessed": 1773545121448,
       "type": "file"
     },
     {
-      "path": "src/commands/update.ts",
+      "path": "src/templates/cloud-init.yaml.ejs",
       "accessCount": 1,
-      "lastAccessed": 1773507548610,
+      "lastAccessed": 1773545004711,
+      "type": "file"
+    },
+    {
+      "path": "src/core/platform.ts",
+      "accessCount": 1,
+      "lastAccessed": 1773545009315,
+      "type": "file"
+    },
+    {
+      "path": "src/core/cloudinit.ts",
+      "accessCount": 1,
+      "lastAccessed": 1773545020769,
+      "type": "file"
+    },
+    {
+      "path": "src/core/health.ts",
+      "accessCount": 1,
+      "lastAccessed": 1773545047005,
       "type": "file"
     }
   ],

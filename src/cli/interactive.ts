@@ -6,13 +6,16 @@ import { classifyIntent } from './intent-classifier.js';
 export async function interactiveMode() {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
 
-  // Check if API keys are configured
+  // Check if API keys are configured - if not, run init first
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   if (!anthropicKey) {
-    console.error(chalk.red('❌ ANTHROPIC_API_KEY not set'));
-    console.log(chalk.yellow('\nRun this first to set up your API keys:'));
-    console.log(chalk.bold('  buildwithnexus da-init'));
-    process.exit(1);
+    console.log(chalk.cyan('\n🔧 First-time setup required\n'));
+    const { deepAgentsInitCommand } = await import('./init-command.js');
+    await deepAgentsInitCommand();
+    console.log(chalk.green('\n✓ Setup complete!'));
+    console.log(chalk.gray('\nRestart buildwithnexus to continue:'));
+    console.log(chalk.bold('  buildwithnexus\n'));
+    process.exit(0);
   }
 
   try {

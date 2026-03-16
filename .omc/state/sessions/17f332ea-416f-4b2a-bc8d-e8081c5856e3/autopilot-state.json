@@ -1,8 +1,0 @@
-{
-  "active": true,
-  "started_at": "2026-03-16T17:05:05.286Z",
-  "original_prompt": "so i did all that, set the key, and then it did this: ╔════════════════════════════════════════════════════════════╗\n║        🚀 DEEP AGENTS - Autonomous Execution Engine        ║\n╚════════════════════════════════════════════════════════════╝\n\nMODE: PLAN | BUILD | [BRAINSTORM]\nType \"switch\" or \"s\" to change modes\n────────────────────────────────────────────────────────────\n\n💡 BRAINSTORM MODE\nFree-form Q&A and idea exploration\n\nStarting topic: hello!\nAsk follow-up questions. Type \"done\" to exit, \"switch\" to change mode.\n\n💡 Thinking...\n\n💡 Agent:\n  ANTHROPIC_API_KEY environment variable is not set. Please set it to use Claude for planning: export ANTHROPIC_API_KEY=sk-...\n\n💬 You: \n\n\n\n",
-  "session_id": "17f332ea-416f-4b2a-bc8d-e8081c5856e3",
-  "reinforcement_count": 0,
-  "last_checked_at": "2026-03-16T17:05:05.286Z"
-}

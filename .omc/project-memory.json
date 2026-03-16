@@ -165,15 +165,15 @@
       "type": "file"
     },
     {
-      "path": "src/cli/run-command.ts",
-      "accessCount": 9,
-      "lastAccessed": 1773680733674,
+      "path": "src/bin.ts",
+      "accessCount": 10,
+      "lastAccessed": 1773686331710,
       "type": "file"
     },
     {
-      "path": "src/bin.ts",
-      "accessCount": 7,
-      "lastAccessed": 1773676294284,
+      "path": "src/cli/run-command.ts",
+      "accessCount": 9,
+      "lastAccessed": 1773680733674,
       "type": "file"
     },
     {
@@ -184,8 +184,8 @@
     },
     {
       "path": "src/cli/init-command.ts",
-      "accessCount": 5,
-      "lastAccessed": 1773680893885,
+      "accessCount": 6,
+      "lastAccessed": 1773686335841,
       "type": "file"
     },
     {

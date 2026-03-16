@@ -8,9 +8,12 @@ import { interactiveMode } from './cli/interactive.js';
 import { cli } from './cli.js';
 import { checkForUpdates } from './core/update-notifier.js';
 import dotenv from 'dotenv';
+import os from 'os';
+import path from 'path';
 
-// Load .env.local if it exists
-dotenv.config({ path: '.env.local' });
+// Load .env.local from home directory (works from any working directory)
+const homeEnvPath = path.join(os.homedir(), '.env.local');
+dotenv.config({ path: homeEnvPath });
 
 const version = typeof __BUILDWITHNEXUS_VERSION__ !== 'undefined'
   ? __BUILDWITHNEXUS_VERSION__

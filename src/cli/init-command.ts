@@ -1,6 +1,7 @@
 // src/cli/init-command.ts
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { input, confirm, password } from '@inquirer/prompts';
 
 export async function deepAgentsInitCommand() {
@@ -10,8 +11,8 @@ export async function deepAgentsInitCommand() {
 ╚════════════════════════════════════════╝
 `);
 
-  // Check if .env.local already exists
-  const envPath = path.join(process.cwd(), '.env.local');
+  // Check if .env.local already exists in home directory
+  const envPath = path.join(os.homedir(), '.env.local');
   const hasEnv = fs.existsSync(envPath);
 
   if (hasEnv) {

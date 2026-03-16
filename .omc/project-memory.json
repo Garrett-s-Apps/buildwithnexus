@@ -136,8 +136,14 @@
   "hotPaths": [
     {
       "path": "src/cli/interactive.ts",
-      "accessCount": 18,
-      "lastAccessed": 1773676592587,
+      "accessCount": 21,
+      "lastAccessed": 1773680461661,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 15,
+      "lastAccessed": 1773680470332,
       "type": "file"
     },
     {
@@ -151,12 +157,6 @@
       "accessCount": 14,
       "lastAccessed": 1773676453950,
       "type": "directory"
-    },
-    {
-      "path": "package.json",
-      "accessCount": 13,
-      "lastAccessed": 1773677567954,
-      "type": "file"
     },
     {
       "path": "src/cli/tui.ts",
@@ -220,8 +220,8 @@
     },
     {
       "path": "src/cli/init-command.ts",
-      "accessCount": 1,
-      "lastAccessed": 1773675750531,
+      "accessCount": 2,
+      "lastAccessed": 1773680444697,
       "type": "file"
     },
     {

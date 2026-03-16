@@ -6,6 +6,15 @@ import { classifyIntent } from './intent-classifier.js';
 export async function interactiveMode() {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
 
+  // Check if API keys are configured
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (!anthropicKey) {
+    console.error(chalk.red('❌ ANTHROPIC_API_KEY not set'));
+    console.log(chalk.yellow('\nRun this first to set up your API keys:'));
+    console.log(chalk.bold('  buildwithnexus da-init'));
+    process.exit(1);
+  }
+
   try {
     const response = await fetch(`${backendUrl}/health`);
     if (!response.ok) {

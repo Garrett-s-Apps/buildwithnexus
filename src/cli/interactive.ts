@@ -23,6 +23,13 @@ export async function interactiveMode() {
       console.error('Please run: buildwithnexus da-init');
       process.exit(1);
     }
+
+    // Verify keys are actually loaded
+    const keys = loadApiKeys();
+    console.log(chalk.green('\n✓ Configuration complete!'));
+    console.log(chalk.gray(`  Anthropic: ${keys.anthropic ? '✓' : '✗'}`));
+    console.log(chalk.gray(`  OpenAI: ${keys.openai ? '✓' : '✗'}`));
+    console.log(chalk.gray(`  Google: ${keys.google ? '✓' : '✗'}\n`));
   }
 
   try {

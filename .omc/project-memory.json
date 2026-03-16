@@ -135,16 +135,16 @@
   },
   "hotPaths": [
     {
+      "path": "src/cli/interactive.ts",
+      "accessCount": 54,
+      "lastAccessed": 1773688472651,
+      "type": "file"
+    },
+    {
       "path": "",
       "accessCount": 53,
       "lastAccessed": 1773687495925,
       "type": "directory"
-    },
-    {
-      "path": "src/cli/interactive.ts",
-      "accessCount": 48,
-      "lastAccessed": 1773687835713,
-      "type": "file"
     },
     {
       "path": "src",
@@ -154,8 +154,8 @@
     },
     {
       "path": "package.json",
-      "accessCount": 21,
-      "lastAccessed": 1773687512922,
+      "accessCount": 22,
+      "lastAccessed": 1773688697133,
       "type": "file"
     },
     {
@@ -166,14 +166,14 @@
     },
     {
       "path": "src/bin.ts",
-      "accessCount": 16,
-      "lastAccessed": 1773687531252,
+      "accessCount": 18,
+      "lastAccessed": 1773688432862,
       "type": "file"
     },
     {
       "path": "src/cli/init-command.ts",
-      "accessCount": 15,
-      "lastAccessed": 1773687541731,
+      "accessCount": 16,
+      "lastAccessed": 1773688446090,
       "type": "file"
     },
     {
@@ -190,8 +190,8 @@
     },
     {
       "path": "src/core/config.ts",
-      "accessCount": 8,
-      "lastAccessed": 1773687502228,
+      "accessCount": 9,
+      "lastAccessed": 1773688432978,
       "type": "file"
     },
     {
@@ -396,6 +396,12 @@
       "path": "src/commands/start.ts",
       "accessCount": 1,
       "lastAccessed": 1773687516625,
+      "type": "file"
+    },
+    {
+      "path": "test-init-manual.js",
+      "accessCount": 1,
+      "lastAccessed": 1773688599554,
       "type": "file"
     }
   ],

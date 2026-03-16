@@ -16,7 +16,7 @@ async function runCommand(task: string, options: { agent: string; goal?: string;
   const repl = new PlanningREPL();
   const formatter = new StreamFormatter();
 
-  console.log(`\nStarting Deep Agents workflow\n`);
+  console.log(`\nStarting Nexus Workflow\n`);
   console.log(`  Task: ${task}`);
   console.log(`  Agent: ${options.agent}`);
   console.log(`  Backend: ${backendUrl}\n`);

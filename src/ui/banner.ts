@@ -7,7 +7,7 @@ const BANNER = `
   ╔══════════════════════════════════════════════╗
   ║       ${chalk.bold.cyan("B U I L D   W I T H   N E X U S")}        ║
   ║                                              ║
-  ║   Autonomous AI Runtime · Nested Isolation   ║
+  ║      Autonomous Agent Orchestration          ║
   ╚══════════════════════════════════════════════╝
 `;
 

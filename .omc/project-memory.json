@@ -184,8 +184,8 @@
     },
     {
       "path": "src/deep-agents-bin.ts",
-      "accessCount": 13,
-      "lastAccessed": 1773695132241,
+      "accessCount": 15,
+      "lastAccessed": 1773696293923,
       "type": "file"
     },
     {
@@ -285,6 +285,12 @@
       "type": "file"
     },
     {
+      "path": "src/ui/banner.ts",
+      "accessCount": 3,
+      "lastAccessed": 1773696293552,
+      "type": "file"
+    },
+    {
       "path": "src/ui/repl.ts",
       "accessCount": 2,
       "lastAccessed": 1773686945843,
@@ -378,12 +384,6 @@
       "path": "src/commands/destroy.ts",
       "accessCount": 1,
       "lastAccessed": 1773687145540,
-      "type": "file"
-    },
-    {
-      "path": "src/ui/banner.ts",
-      "accessCount": 1,
-      "lastAccessed": 1773687145925,
       "type": "file"
     },
     {

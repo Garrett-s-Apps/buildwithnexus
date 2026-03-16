@@ -2,20 +2,27 @@ import * as readline from 'readline';
 import chalk from 'chalk';
 import { tui, type Mode } from './tui.js';
 import { classifyIntent } from './intent-classifier.js';
+import { hasAnyKey, reloadEnv, loadApiKeys } from '../core/config.js';
 
 export async function interactiveMode() {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
 
-  // Check if API keys are configured - if not, run init first
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (!anthropicKey) {
+  // Check if any API key is configured
+  if (!hasAnyKey()) {
+    // No keys set, run init flow
     console.log(chalk.cyan('\n🔧 First-time setup required\n'));
     const { deepAgentsInitCommand } = await import('./init-command.js');
     await deepAgentsInitCommand();
-    console.log(chalk.green('\n✓ Setup complete!'));
-    console.log(chalk.gray('\nRestart buildwithnexus to continue:'));
-    console.log(chalk.bold('  buildwithnexus\n'));
-    process.exit(0);
+
+    // Reload environment from ~/.env.local
+    reloadEnv();
+
+    // Re-check after reload
+    if (!hasAnyKey()) {
+      console.error('Error: At least one API key is required to use buildwithnexus.');
+      console.error('Please run: buildwithnexus da-init');
+      process.exit(1);
+    }
   }
 
   try {
@@ -200,13 +207,13 @@ async function planModeLoop(
 
   let steps: string[] = [];
 
-  const apiKey = process.env.ANTHROPIC_API_KEY || '';
+  const keys = loadApiKeys();
 
   try {
     const response = await fetch(`${backendUrl}/api/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task, agent_role: 'engineer', agent_goal: '', api_key: apiKey }),
+      body: JSON.stringify({ task, agent_role: 'engineer', agent_goal: '', api_key: keys.anthropic || '', openai_api_key: keys.openai || '', google_api_key: keys.google || '' }),
     });
 
     if (!response.ok) {
@@ -335,13 +342,13 @@ async function buildModeLoop(
   console.log(chalk.bold('Task:'), chalk.white(task));
   tui.displayConnecting();
 
-  const apiKey = process.env.ANTHROPIC_API_KEY || '';
+  const keys = loadApiKeys();
 
   try {
     const response = await fetch(`${backendUrl}/api/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task, agent_role: 'engineer', agent_goal: '', api_key: apiKey }),
+      body: JSON.stringify({ task, agent_role: 'engineer', agent_goal: '', api_key: keys.anthropic || '', openai_api_key: keys.openai || '', google_api_key: keys.google || '' }),
     });
 
     if (!response.ok) {
@@ -440,7 +447,7 @@ async function brainstormModeLoop(
     console.log(chalk.bold.blue('💡 Thinking...'));
 
     try {
-      const apiKey = process.env.ANTHROPIC_API_KEY || '';
+      const keys = loadApiKeys();
       const response = await fetch(`${backendUrl}/api/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -448,7 +455,9 @@ async function brainstormModeLoop(
           task: currentQuestion,
           agent_role: 'brainstorm',
           agent_goal: 'Generate ideas, considerations, and suggestions. Be concise and helpful.',
-          api_key: apiKey,
+          api_key: keys.anthropic || '',
+          openai_api_key: keys.openai || '',
+          google_api_key: keys.google || '',
         }),
       });
 

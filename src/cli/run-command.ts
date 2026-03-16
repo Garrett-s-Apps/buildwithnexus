@@ -1,5 +1,6 @@
 // src/cli/run-command.ts
 import { tui } from './tui.js';
+import { loadApiKeys } from '../core/config.js';
 
 export async function runCommand(
   task: string,
@@ -29,7 +30,7 @@ export async function runCommand(
     }
 
     // POST to backend
-    const apiKey = process.env.ANTHROPIC_API_KEY || '';
+    const keys = loadApiKeys();
     const response = await fetch(`${backendUrl}/api/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -37,7 +38,9 @@ export async function runCommand(
         task,
         agent_role: options.agent,
         agent_goal: options.goal || '',
-        api_key: apiKey,
+        api_key: keys.anthropic || '',
+        openai_api_key: keys.openai || '',
+        google_api_key: keys.google || '',
       }),
     });
 

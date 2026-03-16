@@ -3,6 +3,12 @@
 import { program } from 'commander';
 import { PlanningREPL } from './deep-agents/ui/planning-repl.js';
 import { StreamFormatter } from './deep-agents/ui/stream-formatter.js';
+import { loadApiKeys } from './core/config.js';
+import dotenv from 'dotenv';
+import path from 'path';
+import os from 'os';
+
+dotenv.config({ path: path.join(os.homedir(), '.env.local') });
 
 const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
 
@@ -17,6 +23,7 @@ async function runCommand(task: string, options: { agent: string; goal?: string;
 
   try {
     // POST to backend /api/run
+    const keys = loadApiKeys();
     const response = await fetch(`${backendUrl}/api/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -24,6 +31,9 @@ async function runCommand(task: string, options: { agent: string; goal?: string;
         task,
         agent_role: options.agent,
         agent_goal: options.goal || '',
+        api_key: keys.anthropic || '',
+        openai_api_key: keys.openai || '',
+        google_api_key: keys.google || '',
       }),
     });
 

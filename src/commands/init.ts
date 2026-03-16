@@ -5,7 +5,7 @@ import { showBanner, showPhase, showCompletion } from "../ui/banner.js";
 import { createSpinner, succeed, fail } from "../ui/spinner.js";
 import { log } from "../ui/logger.js";
 import { promptInitConfig } from "../ui/prompts.js";
-import { detectPlatform, type PlatformInfo } from "../core/platform.js";
+import { detectPlatform } from "../core/platform.js";
 import {
   ensureHome,
   generateMasterSecret,
@@ -15,59 +15,21 @@ import {
   type NexusKeys,
 } from "../core/secrets.js";
 import {
-  isQemuInstalled,
-  installQemu,
-  downloadImage,
-  createDisk,
-  launchVm,
-  resolvePortConflicts,
-  stopVm,
-  type ResolvedPorts,
-} from "../core/qemu.js";
-import { generateSshKey, addSshConfig, waitForSsh, getPubKey, sshUploadFile, getKeyPath } from "../core/ssh.js";
-import { renderCloudInit, createCloudInitIso } from "../core/cloudinit.js";
-import { waitForCloudInit, waitForServer } from "../core/health.js";
+  isDockerInstalled,
+  imageExistsLocally,
+  pullImage,
+  startNexus,
+  isNexusRunning,
+  stopNexus,
+} from "../core/docker.js";
 import { installCloudflared, startTunnel } from "../core/tunnel.js";
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
-import crypto from "node:crypto";
-import { fileURLToPath } from "node:url";
-import { redactError, validateAllKeys, DlpViolation } from "../core/dlp.js";
-import { sshExec } from "../core/ssh.js";
+import { redactError, validateAllKeys } from "../core/dlp.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getReleaseTarball(): string {
-  const dir = path.dirname(fileURLToPath(import.meta.url));
-  // Check in multiple locations
-  const possiblePaths = [
-    // Current directory (dev)
-    path.join(dir, "nexus-release.tar.gz"),
-    // dist folder (when built)
-    path.resolve(dir, "..", "dist", "nexus-release.tar.gz"),
-    // node_modules location (when installed from npm)
-    path.resolve(dir, "..", "nexus-release.tar.gz"),
-  ];
-
-  for (const tarballPath of possiblePaths) {
-    if (fs.existsSync(tarballPath)) return tarballPath;
-  }
-
-  throw new Error("nexus-release.tar.gz not found. Run: npm install buildwithnexus@latest");
-}
-
-function getCloudInitTemplate(): string {
-  const dir = path.dirname(fileURLToPath(import.meta.url));
-  const templatePath = path.join(dir, "templates", "cloud-init.yaml.ejs");
-  if (fs.existsSync(templatePath)) return fs.readFileSync(templatePath, "utf-8");
-  const srcPath = path.resolve(dir, "..", "src", "templates", "cloud-init.yaml.ejs");
-  return fs.readFileSync(srcPath, "utf-8");
-}
-
-// Run an async task wrapped in a spinner. Throws on failure (caller handles cleanup).
+/** Run an async task wrapped in a spinner. Throws on failure. */
 async function withSpinner<T>(
   spinner: Ora,
   label: string,
@@ -80,21 +42,44 @@ async function withSpinner<T>(
   return result;
 }
 
+/**
+ * Wait for the NEXUS server to respond on the given port.
+ * Polls http://localhost:{port}/health with exponential backoff.
+ * Timeout default: 120s (Docker starts much faster than a VM).
+ */
+async function waitForHealthy(port: number, timeoutMs = 120_000): Promise<boolean> {
+  const start = Date.now();
+  let attempt = 0;
+  const backoffMs = (n: number) => Math.min(2000 * Math.pow(2, n), 10_000);
+
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(`http://localhost:${port}/health`);
+      if (res.ok) {
+        const body = await res.text();
+        if (body.includes("ok")) return true;
+      }
+    } catch {
+      // not ready yet
+    }
+
+    const delay = backoffMs(attempt++);
+    const remaining = timeoutMs - (Date.now() - start);
+    if (remaining <= 0) break;
+    await new Promise((r) => setTimeout(r, Math.min(delay, remaining)));
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Context — shared mutable state passed through all phases
 // ---------------------------------------------------------------------------
 
 interface InitContext {
-  platform: PlatformInfo;
   config: NexusConfig;
   keys: NexusKeys;
-  tarballPath: string;
-  imagePath: string;
-  diskPath: string;
-  isoPath: string;
-  resolvedPorts: ResolvedPorts;
   tunnelUrl: string | undefined;
-  vmLaunched: boolean; // so cleanup knows whether to stopVm
+  containerStarted: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,34 +88,28 @@ interface InitContext {
 
 interface Phase {
   name: string;
-  skip?: (ctx: Partial<InitContext>) => boolean;
   run: (ctx: Partial<InitContext>, spinner: Ora) => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
-// Phases
+// Phases (Docker-first flow)
 // ---------------------------------------------------------------------------
 
 const phases: Phase[] = [
-  // Phase 1 — Configuration
+  // Phase 1 — Configuration (~30s)
   {
     name: "Configuration",
     run: async (ctx) => {
       showBanner();
       const platform = detectPlatform();
       log.detail("Platform", `${platform.os} ${platform.arch}`);
-      log.detail("QEMU", platform.qemuBinary);
 
       const userConfig = await promptInitConfig();
       ensureHome();
 
       const masterSecret = generateMasterSecret();
       const config: NexusConfig = {
-        vmRam: userConfig.vmRam,
-        vmCpus: userConfig.vmCpus,
-        vmDisk: userConfig.vmDisk,
         enableTunnel: userConfig.enableTunnel,
-        sshPort: 2222,
         httpPort: 4200,
         httpsPort: 8443,
         masterSecret,
@@ -153,209 +132,124 @@ const phases: Phase[] = [
       saveKeys(keys);
       log.success("Configuration saved");
 
-      ctx.platform = platform;
       ctx.config = config;
       ctx.keys = keys;
     },
   },
 
-  // Phase 2 — QEMU
+  // Phase 2 — Docker Check (install is handled by `buildwithnexus install`)
   {
-    name: "QEMU Installation",
-    run: async (ctx, spinner) => {
-      const { platform } = ctx as InitContext;
-      await withSpinner(spinner, "Checking QEMU...", async () => {
-        const hasQemu = await isQemuInstalled(platform);
-        if (!hasQemu) {
-          spinner.text = "Installing QEMU...";
-          await installQemu(platform);
-        }
-      });
-      succeed(spinner, hasQemuLabel(await isQemuInstalled(ctx.platform!)));
-    },
-  },
-
-  // Phase 3 — SSH Keys
-  {
-    name: "SSH Key Setup",
-    run: async (ctx, spinner) => {
-      const { config } = ctx as InitContext;
-      await withSpinner(spinner, "Generating SSH key...", async () => {
-        await generateSshKey();
-        // Delete stale host key pin so new VM's key gets re-pinned
-        const pinFile = path.join(path.dirname(getKeyPath()), "vm_host_key.pin");
-        try { fs.unlinkSync(pinFile); } catch { /* not found is fine */ }
-      });
-    },
-  },
-
-  // Phase 4 — Ubuntu Image
-  {
-    name: "VM Image Download",
-    run: async (ctx, spinner) => {
-      const { platform } = ctx as InitContext;
-      const imagePath = await withSpinner(
-        spinner,
-        `Downloading Ubuntu 24.04 (${platform.ubuntuImage})...`,
-        () => downloadImage(platform),
-      );
-      ctx.imagePath = imagePath;
-    },
-  },
-
-  // Phase 5 — Cloud-Init
-  {
-    name: "Cloud-Init Generation",
-    run: async (ctx, spinner) => {
-      const { keys, config } = ctx as InitContext;
-
-      const tarballPath = await withSpinner(spinner, "Locating release tarball...", async () => {
-        return getReleaseTarball();
-      });
-      ctx.tarballPath = tarballPath;
-
-      const isoPath = await withSpinner(spinner, "Rendering cloud-init...", async () => {
-        const pubKey = getPubKey();
-        const template = getCloudInitTemplate();
-        const userDataPath = await renderCloudInit({ sshPubKey: pubKey, keys, config }, template);
-        return createCloudInitIso(userDataPath);
-      });
-      ctx.isoPath = isoPath;
-    },
-  },
-
-  // Phase 6 — VM Boot
-  {
-    name: "VM Launch",
-    run: async (ctx, spinner) => {
-      const { platform, imagePath, isoPath, config } = ctx as InitContext;
-
-      // Port conflict resolution needs interactive input — pause spinner
-      spinner.text = "Checking port availability...";
+    name: "Docker Check",
+    run: async (_ctx, spinner) => {
+      spinner.text = "Checking Docker...";
       spinner.start();
-      spinner.stop();
-      spinner.clear();
-      const requestedPorts = { ssh: config.sshPort, http: config.httpPort, https: config.httpsPort };
-      const resolvedPorts = await resolvePortConflicts(requestedPorts);
 
-      const diskPath = await withSpinner(spinner, "Creating disk and launching VM...", async () => {
-        const disk = await createDisk(imagePath, config.vmDisk);
-        await launchVm(platform, disk, isoPath, config.vmRam, config.vmCpus, resolvedPorts);
-        return disk;
-      });
-
-      // Update config with actual ports (may differ after conflict resolution)
-      config.sshPort = resolvedPorts.ssh;
-      addSshConfig(config.sshPort);
-      config.httpPort = resolvedPorts.http;
-      config.httpsPort = resolvedPorts.https;
-      saveConfig(config);
-
-      const portNote = (resolvedPorts.ssh !== 2222 || resolvedPorts.http !== 4200 || resolvedPorts.https !== 8443)
-        ? ` (ports: SSH=${resolvedPorts.ssh}, HTTP=${resolvedPorts.http}, HTTPS=${resolvedPorts.https})`
-        : "";
-      succeed(spinner, `VM launched (daemonized)${portNote}`);
-
-      ctx.diskPath = diskPath;
-      ctx.resolvedPorts = resolvedPorts;
-      ctx.vmLaunched = true;
-    },
-  },
-
-  // Phase 7 — VM Provisioning
-  {
-    name: "VM Provisioning",
-    run: async (ctx, spinner) => {
-      const { config, keys, tarballPath } = ctx as InitContext;
-
-      // Wait for SSH
-      spinner.text = "Waiting for SSH...";
-      spinner.start();
-      const sshReady = await waitForSsh(config.sshPort);
-      if (!sshReady) {
-        fail(spinner, "SSH connection timed out");
-        throw new Error("SSH connection timed out");
+      const installed = await isDockerInstalled();
+      if (installed) {
+        succeed(spinner, "Docker is installed and running");
+        return;
       }
-      succeed(spinner, "SSH connected");
 
-      // Upload tarball
-      await withSpinner(spinner, "Uploading NEXUS release tarball...", () =>
-        sshUploadFile(config.sshPort, tarballPath, "/tmp/nexus-release.tar.gz"),
+      fail(spinner, "Docker is not installed or not running");
+      throw new Error(
+        "Docker is required but not available.\n\n" +
+        "  Run the following command to install Docker:\n" +
+        "    buildwithnexus install\n\n" +
+        "  Then re-run:\n" +
+        "    buildwithnexus init",
       );
+    },
+  },
 
-      // Stage API keys in /tmp (nexus user doesn't exist until cloud-init finishes)
-      await withSpinner(spinner, "Staging API keys...", async () => {
-        const keysContent = Object.entries(keys)
-          .filter(([, v]) => v)
-          .map(([k, v]) => `${k}=${v}`)
-          .join("\n") + "\n";
-        const tmpKeysPath = path.join(os.tmpdir(), `.nexus-keys-${crypto.randomBytes(8).toString("hex")}`);
-        fs.writeFileSync(tmpKeysPath, keysContent, { mode: 0o600 });
-        try {
-          await sshUploadFile(config.sshPort, tmpKeysPath, "/tmp/.nexus-env-keys");
-          await sshExec(config.sshPort, "chmod 600 /tmp/.nexus-env-keys");
-        } finally {
-          try {
-            fs.writeFileSync(tmpKeysPath, "0".repeat(keysContent.length));
-            fs.unlinkSync(tmpKeysPath);
-          } catch { /* best-effort */ }
-        }
-      });
-
-      // Wait for cloud-init
-      spinner.text = "Cloud-init provisioning — this takes 10-20 min (extracting NEXUS, building Docker, installing deps)...";
+  // Phase 3 — Pull Image (~1-2 min)
+  {
+    name: "Pull Image",
+    run: async (_ctx, spinner) => {
+      spinner.text = "Checking for buildwithnexus/nexus:latest...";
       spinner.start();
-      const cloudInitDone = await waitForCloudInit(config.sshPort);
-      if (!cloudInitDone) {
-        fail(spinner, "Cloud-init timed out after 30 minutes");
-        log.warn("Check progress: buildwithnexus ssh  →  tail -f /var/log/cloud-init-output.log");
-        throw new Error("Cloud-init timed out");
-      }
-      succeed(spinner, "VM fully provisioned");
 
-      // Move keys into place now that nexus user exists
-      await withSpinner(spinner, "Delivering API keys...", () =>
-        sshExec(
-          config.sshPort,
-          "mkdir -p /home/nexus/.nexus && mv /tmp/.nexus-env-keys /home/nexus/.nexus/.env.keys" +
-          " && chown -R nexus:nexus /home/nexus/.nexus && chmod 600 /home/nexus/.nexus/.env.keys",
+      const localExists = await imageExistsLocally("buildwithnexus/nexus", "latest");
+      if (localExists) {
+        succeed(spinner, "Image found locally: buildwithnexus/nexus:latest (skipping pull)");
+        return;
+      }
+
+      spinner.stop(); // pullImage uses stdio: "inherit" for progress
+      try {
+        await pullImage("buildwithnexus/nexus", "latest");
+        succeed(spinner, "Image pulled: buildwithnexus/nexus:latest");
+      } catch (err) {
+        fail(spinner, "Failed to pull buildwithnexus/nexus:latest");
+        throw new Error(
+          "Could not pull buildwithnexus/nexus:latest from registry.\n\n" +
+          "  If you have built the image locally, you can build it with:\n" +
+          "    docker build -f Dockerfile.nexus -t buildwithnexus/nexus:latest .\n\n" +
+          "  Then re-run:\n" +
+          "    buildwithnexus init",
+        );
+      }
+    },
+  },
+
+  // Phase 4 — Launch Container (~10s)
+  {
+    name: "Launch",
+    run: async (ctx, spinner) => {
+      const { config, keys } = ctx as InitContext;
+
+      // Stop any existing NEXUS container first
+      const alreadyRunning = await isNexusRunning();
+      if (alreadyRunning) {
+        await withSpinner(spinner, "Stopping existing NEXUS container...", () => stopNexus());
+      }
+
+      await withSpinner(spinner, "Starting NEXUS container...", () =>
+        startNexus(
+          {
+            anthropic: keys.ANTHROPIC_API_KEY,
+            openai: keys.OPENAI_API_KEY || "",
+          },
+          { port: config.httpPort },
         ),
       );
+      ctx.containerStarted = true;
     },
   },
 
-  // Phase 8 — Server Health
+  // Phase 5 — Health Check (~10s)
   {
-    name: "NEXUS Server Startup",
+    name: "Health Check",
     run: async (ctx, spinner) => {
       const { config } = ctx as InitContext;
-      spinner.text = "Waiting for NEXUS server...";
+      spinner.text = `Waiting for NEXUS server on port ${config.httpPort}...`;
       spinner.start();
-      const serverReady = await waitForServer(config.sshPort);
-      if (!serverReady) {
-        fail(spinner, "Server failed to start");
-        log.warn("Check logs: buildwithnexus logs");
-        throw new Error("NEXUS server failed to start");
+      const healthy = await waitForHealthy(config.httpPort);
+      if (!healthy) {
+        fail(spinner, "Server failed to start within 120s");
+        log.warn("Check logs: docker logs nexus");
+        throw new Error("NEXUS server failed to respond to health checks");
       }
-      succeed(spinner, "NEXUS server healthy on port 4200");
+      succeed(spinner, `NEXUS server healthy on port ${config.httpPort}`);
     },
   },
 
-  // Phase 9 — Cloudflare Tunnel
+  // Phase 6 — Cloudflare Tunnel (optional)
   {
     name: "Cloudflare Tunnel",
     run: async (ctx, spinner) => {
-      const { config, platform } = ctx as InitContext;
+      const { config } = ctx as InitContext;
       if (!config.enableTunnel) {
         log.dim("Skipped (not enabled)");
         return;
       }
+
+      const platform = detectPlatform();
       await withSpinner(spinner, "Installing cloudflared...", () =>
-        installCloudflared(config.sshPort, platform.arch),
+        installCloudflared(config.httpPort, platform.arch),
       );
       spinner.text = "Starting tunnel...";
       spinner.start();
-      const url = await startTunnel(config.sshPort);
+      const url = await startTunnel(config.httpPort);
       if (url) {
         ctx.tunnelUrl = url;
         succeed(spinner, `Tunnel active: ${url}`);
@@ -365,21 +259,17 @@ const phases: Phase[] = [
     },
   },
 
-  // Phase 10 — Complete
+  // Phase 7 — Complete
   {
     name: "Complete",
     run: async (ctx) => {
-      showCompletion({ remote: ctx.tunnelUrl, ssh: "buildwithnexus ssh" });
+      showCompletion({
+        remote: ctx.tunnelUrl,
+        ssh: `http://localhost:${ctx.config?.httpPort || 4200}`,
+      });
     },
   },
 ];
-
-// ---------------------------------------------------------------------------
-// Helper for phase 2 label
-// ---------------------------------------------------------------------------
-function hasQemuLabel(installed: boolean): string {
-  return installed ? "QEMU ready" : "QEMU installed";
-}
 
 // ---------------------------------------------------------------------------
 // Runner
@@ -388,17 +278,12 @@ function hasQemuLabel(installed: boolean): string {
 const TOTAL_PHASES = phases.length;
 
 async function runInit(): Promise<void> {
-  const ctx: Partial<InitContext> = { vmLaunched: false, tunnelUrl: undefined };
+  const ctx: Partial<InitContext> = { containerStarted: false, tunnelUrl: undefined };
   const spinner = createSpinner("");
 
   for (let i = 0; i < phases.length; i++) {
     const phase = phases[i];
     showPhase(i + 1, TOTAL_PHASES, phase.name);
-
-    if (phase.skip?.(ctx)) {
-      log.dim("Skipped");
-      continue;
-    }
 
     try {
       await phase.run(ctx, spinner);
@@ -406,10 +291,10 @@ async function runInit(): Promise<void> {
       // Stop the spinner so the error message is clean
       try { spinner.stop(); } catch { /* ignore */ }
 
-      // Clean up the VM if it was launched before the failure
-      if (ctx.vmLaunched) {
-        process.stderr.write(chalk.dim("\n  Stopping VM due to init failure...\n"));
-        try { stopVm(); } catch { /* ignore */ }
+      // Clean up the container if it was started before the failure
+      if (ctx.containerStarted) {
+        process.stderr.write(chalk.dim("\n  Stopping container due to init failure...\n"));
+        try { await stopNexus(); } catch { /* ignore */ }
       }
 
       throw err;
@@ -422,7 +307,7 @@ async function runInit(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export const initCommand = new Command("init")
-  .description("Scaffold and launch a new NEXUS runtime")
+  .description("Scaffold and launch a new NEXUS runtime (Docker)")
   .action(async () => {
     try {
       await runInit();

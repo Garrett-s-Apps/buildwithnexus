@@ -2,13 +2,9 @@ import { Command } from "commander";
 import { createSpinner, succeed, fail } from "../ui/spinner.js";
 import { log } from "../ui/logger.js";
 import { loadConfig } from "../core/secrets.js";
-import { detectPlatform } from "../core/platform.js";
-import { launchVm, isVmRunning } from "../core/qemu.js";
-import { waitForSsh, sshExec } from "../core/ssh.js";
+import { isNexusRunning, startNexus, pullImage } from "../core/docker.js";
 import { waitForServer } from "../core/health.js";
 import { startTunnel } from "../core/tunnel.js";
-import path from "node:path";
-import { NEXUS_HOME } from "../core/secrets.js";
 
 export const startCommand = new Command("start")
   .description("Start the NEXUS runtime")
@@ -19,37 +15,27 @@ export const startCommand = new Command("start")
       process.exit(1);
     }
 
-    if (isVmRunning()) {
-      log.success("VM is already running");
+    if (await isNexusRunning()) {
+      log.success("NEXUS is already running");
       return;
     }
 
-    const platform = detectPlatform();
-    const diskPath = path.join(NEXUS_HOME, "vm", "images", "nexus-vm-disk.qcow2");
-    const isoPath = path.join(NEXUS_HOME, "vm", "images", "init.iso");
-
-    let spinner = createSpinner("Starting VM...");
+    let spinner = createSpinner("Pulling NEXUS image...");
     spinner.start();
-    await launchVm(platform, diskPath, isoPath, config.vmRam, config.vmCpus, {
-      ssh: config.sshPort,
-      http: config.httpPort,
-      https: config.httpsPort,
-    });
-    succeed(spinner, "VM started");
+    await pullImage("buildwithnexus/nexus", "latest");
+    succeed(spinner, "Image ready");
 
-    spinner = createSpinner("Waiting for SSH...");
+    spinner = createSpinner("Starting NEXUS container...");
     spinner.start();
-    const sshOk = await waitForSsh(config.sshPort, 120_000);
-    if (!sshOk) {
-      fail(spinner, "SSH timed out");
-      process.exit(1);
-    }
-    succeed(spinner, "SSH connected");
+    await startNexus(
+      { anthropic: config.anthropicKey, openai: config.openaiKey },
+      { port: config.httpPort }
+    );
+    succeed(spinner, "Container started");
 
-    spinner = createSpinner("Starting NEXUS server...");
+    spinner = createSpinner("Waiting for NEXUS server...");
     spinner.start();
-    await sshExec(config.sshPort, "sudo systemctl start nexus");
-    const ok = await waitForServer(config.sshPort, 60_000);
+    const ok = await waitForServer(60_000);
     if (ok) {
       succeed(spinner, "NEXUS server running");
     } else {
@@ -59,7 +45,7 @@ export const startCommand = new Command("start")
     if (config.enableTunnel) {
       spinner = createSpinner("Starting tunnel...");
       spinner.start();
-      const url = await startTunnel(config.sshPort);
+      const url = await startTunnel();
       if (url) {
         succeed(spinner, `Tunnel: ${url}`);
       } else {

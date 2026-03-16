@@ -1,23 +1,17 @@
 import { Command } from "commander";
+import { execa } from "execa";
 import { log } from "../ui/logger.js";
-import { loadConfig } from "../core/secrets.js";
-import { isVmRunning } from "../core/qemu.js";
-import { openInteractiveSsh } from "../core/ssh.js";
+import { isNexusRunning } from "../core/docker.js";
 
 export const sshCommand = new Command("ssh")
-  .description("Open an SSH session into the NEXUS VM")
+  .description("Open an interactive shell inside the NEXUS container")
   .action(async () => {
-    const config = loadConfig();
-    if (!config) {
-      log.error("No NEXUS configuration found. Run: buildwithnexus init");
+    const running = await isNexusRunning();
+    if (!running) {
+      log.error("NEXUS container is not running. Start it with: buildwithnexus start");
       process.exit(1);
     }
 
-    if (!isVmRunning()) {
-      log.error("VM is not running. Start it with: buildwithnexus start");
-      process.exit(1);
-    }
-
-    log.dim(`Connecting to nexus-vm (port ${config.sshPort})...`);
-    await openInteractiveSsh(config.sshPort);
+    log.dim("Opening shell in NEXUS container...");
+    await execa("docker", ["exec", "-it", "nexus", "/bin/bash"], { stdio: "inherit" });
   });

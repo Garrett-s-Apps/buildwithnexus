@@ -4,9 +4,8 @@ import { input } from "@inquirer/prompts";
 import { log } from "../ui/logger.js";
 import { createSpinner, succeed, fail } from "../ui/spinner.js";
 import { loadConfig } from "../core/secrets.js";
-import { isVmRunning } from "../core/qemu.js";
-import { sshExec } from "../core/ssh.js";
-import { redact, redactError, shellEscape } from "../core/dlp.js";
+import { isNexusRunning } from "../core/docker.js";
+import { redact, redactError } from "../core/dlp.js";
 
 const COS_PREFIX = chalk.bold.cyan("  Chief of Staff");
 const YOU_PREFIX = chalk.bold.white("  You");
@@ -21,26 +20,26 @@ function formatResponse(text: string): string {
 }
 
 async function sendMessage(
-  sshPort: number,
+  httpPort: number,
   message: string,
   source: string,
 ): Promise<string> {
-  const payload = JSON.stringify({ message, source });
-  const escaped = shellEscape(payload);
-  const { stdout, code } = await sshExec(
-    sshPort,
-    `curl -sf -X POST http://localhost:4200/message -H 'Content-Type: application/json' -d ${escaped}`,
-  );
+  const res = await fetch(`http://localhost:${httpPort}/message`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, source }),
+  });
 
-  if (code !== 0) {
-    throw new Error("Server returned a non-zero exit code");
+  if (!res.ok) {
+    throw new Error(`Server returned status ${res.status}`);
   }
 
+  const text = await res.text();
   try {
-    const parsed = JSON.parse(stdout);
-    return parsed.response ?? parsed.message ?? stdout;
+    const parsed = JSON.parse(text);
+    return parsed.response ?? parsed.message ?? text;
   } catch {
-    return stdout;
+    return text;
   }
 }
 
@@ -55,19 +54,23 @@ export const brainstormCommand = new Command("brainstorm")
         process.exit(1);
       }
 
-      if (!isVmRunning()) {
-        log.error("VM is not running. Start it with: buildwithnexus start");
+      if (!(await isNexusRunning())) {
+        log.error("NEXUS is not running. Start it with: buildwithnexus start");
         process.exit(1);
       }
 
       // Check server health
       const spinner = createSpinner("Connecting to NEXUS...");
       spinner.start();
-      const { stdout: healthCheck, code: healthCode } = await sshExec(
-        config.sshPort,
-        "curl -sf http://localhost:4200/health",
-      );
-      if (healthCode !== 0 || !healthCheck.includes("ok")) {
+      let healthOk = false;
+      try {
+        const healthRes = await fetch(`http://localhost:${config.httpPort}/health`);
+        const healthText = await healthRes.text();
+        healthOk = healthRes.ok && healthText.includes("ok");
+      } catch {
+        // fetch threw — server not reachable
+      }
+      if (!healthOk) {
         fail(spinner, "NEXUS server is not healthy");
         log.warn("Check status: buildwithnexus status");
         process.exit(1);
@@ -119,7 +122,7 @@ export const brainstormCommand = new Command("brainstorm")
         thinking.start();
 
         const response = await sendMessage(
-          config.sshPort,
+          config.httpPort,
           currentMessage,
           "brainstorm",
         );

@@ -8,11 +8,7 @@ export const CONFIG_PATH = process.env.NEXUS_CONFIG_PATH || path.join(NEXUS_HOME
 export const KEYS_PATH = process.env.NEXUS_KEYS_PATH || path.join(NEXUS_HOME, ".env.keys");
 
 export interface NexusConfig {
-  vmRam: number;
-  vmCpus: number;
-  vmDisk: number;
   enableTunnel: boolean;
-  sshPort: number;
   httpPort: number;
   httpsPort: number;
   masterSecret?: string;

@@ -3,30 +3,45 @@ import chalk from "chalk";
 import { log } from "../ui/logger.js";
 import { createSpinner, succeed, fail } from "../ui/spinner.js";
 import { loadConfig } from "../core/secrets.js";
-import { isVmRunning } from "../core/qemu.js";
-import { sshExec } from "../core/ssh.js";
-import { checkHealth } from "../core/health.js";
+import { isNexusRunning } from "../core/docker.js";
 import { redact, redactError, shellEscape } from "../core/dlp.js";
 import { Repl } from "../ui/repl.js";
 import { EventStream, formatEvent } from "../core/event-stream.js";
 
-async function sendMessage(sshPort: number, message: string): Promise<string> {
-  const payload = JSON.stringify({ message, source: "shell" });
-  const escaped = shellEscape(payload);
-  const { stdout, code } = await sshExec(
-    sshPort,
-    `curl -sf -X POST http://localhost:4200/message -H 'Content-Type: application/json' -d ${escaped}`,
-  );
-  if (code !== 0) throw new Error("Server returned a non-zero exit code");
+async function httpPost(httpPort: number, path: string, body: unknown): Promise<string> {
+  const res = await fetch(`http://localhost:${httpPort}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!res.ok) throw new Error(`Server returned ${res.status}`);
+  const text = await res.text();
   try {
-    const parsed = JSON.parse(stdout);
-    return parsed.response ?? parsed.message ?? stdout;
+    const parsed = JSON.parse(text);
+    return parsed.response ?? parsed.message ?? text;
   } catch {
-    return stdout;
+    return text;
   }
 }
 
-function showShellBanner(health: { vmRunning: boolean; sshReady: boolean; dockerReady: boolean; serverHealthy: boolean; tunnelUrl: string | null }): void {
+async function httpGet(httpPort: number, path: string): Promise<{ ok: boolean; text: string }> {
+  try {
+    const res = await fetch(`http://localhost:${httpPort}${path}`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    const text = await res.text();
+    return { ok: res.ok, text };
+  } catch {
+    return { ok: false, text: "" };
+  }
+}
+
+async function sendMessage(httpPort: number, message: string): Promise<string> {
+  return httpPost(httpPort, "/message", { message, source: "shell" });
+}
+
+function showShellBanner(health: { containerRunning: boolean; serverHealthy: boolean; tunnelUrl: string | null }): void {
   const check = chalk.green("✓");
   const cross = chalk.red("✗");
 
@@ -34,7 +49,7 @@ function showShellBanner(health: { vmRunning: boolean; sshReady: boolean; docker
   console.log(chalk.bold("  ╔══════════════════════════════════════════════════════════╗"));
   console.log(chalk.bold("  ║  ") + chalk.bold.cyan("NEXUS Interactive Shell") + chalk.bold("                                 ║"));
   console.log(chalk.bold("  ╠══════════════════════════════════════════════════════════╣"));
-  console.log(chalk.bold("  ║  ") + `${health.vmRunning ? check : cross} VM    ${health.sshReady ? check : cross} SSH    ${health.dockerReady ? check : cross} Docker    ${health.serverHealthy ? check : cross} Engine`.padEnd(55) + chalk.bold("║"));
+  console.log(chalk.bold("  ║  ") + `${health.containerRunning ? check : cross} Container    ${health.serverHealthy ? check : cross} Engine`.padEnd(55) + chalk.bold("║"));
   if (health.tunnelUrl) {
     console.log(chalk.bold("  ║  ") + chalk.dim(`Tunnel: ${health.tunnelUrl}`.padEnd(55)) + chalk.bold("║"));
   }
@@ -44,12 +59,12 @@ function showShellBanner(health: { vmRunning: boolean; sshReady: boolean; docker
   console.log("");
 }
 
-async function getAgentList(sshPort: number): Promise<string> {
+async function getAgentList(httpPort: number): Promise<string> {
   try {
-    const { stdout, code } = await sshExec(sshPort, "curl -sf http://localhost:4200/agents");
-    if (code !== 0) return "Could not retrieve agent list";
-    const agents = JSON.parse(stdout);
-    if (!Array.isArray(agents)) return stdout;
+    const { ok, text } = await httpGet(httpPort, "/agents");
+    if (!ok) return "  Could not retrieve agent list";
+    const agents = JSON.parse(text);
+    if (!Array.isArray(agents)) return text;
     const lines: string[] = [""];
     lines.push(chalk.bold("  Registered Agents:"));
     lines.push(chalk.dim("  ─────────────────────────────────────────"));
@@ -66,21 +81,28 @@ async function getAgentList(sshPort: number): Promise<string> {
   }
 }
 
-async function getStatus(sshPort: number): Promise<string> {
+async function getStatus(httpPort: number): Promise<string> {
   try {
-    const vmRunning = isVmRunning();
-    const health = await checkHealth(sshPort, vmRunning);
+    const containerRunning = await isNexusRunning();
+    let serverHealthy = false;
+    let tunnelUrl: string | null = null;
+    if (containerRunning) {
+      const { ok, text } = await httpGet(httpPort, "/health");
+      serverHealthy = ok && (text.includes("ok") || true);
+      const tunnelRes = await httpGet(httpPort, "/tunnel-url");
+      if (tunnelRes.ok && tunnelRes.text.includes("https://")) {
+        tunnelUrl = tunnelRes.text.trim();
+      }
+    }
     const check = chalk.green("✓");
     const cross = chalk.red("✗");
     const lines: string[] = [""];
     lines.push(chalk.bold("  System Status:"));
     lines.push(chalk.dim("  ─────────────────────────────────────────"));
-    lines.push(`  ${health.vmRunning ? check : cross} Virtual Machine`);
-    lines.push(`  ${health.sshReady ? check : cross} SSH Connection`);
-    lines.push(`  ${health.dockerReady ? check : cross} Docker Engine`);
-    lines.push(`  ${health.serverHealthy ? check : cross} NEXUS Engine`);
-    if (health.tunnelUrl) {
-      lines.push(`  ${check} Tunnel: ${health.tunnelUrl}`);
+    lines.push(`  ${containerRunning ? check : cross} NEXUS Container`);
+    lines.push(`  ${serverHealthy ? check : cross} NEXUS Engine`);
+    if (tunnelUrl) {
+      lines.push(`  ${check} Tunnel: ${tunnelUrl}`);
     } else {
       lines.push(`  ${cross} Tunnel: not active`);
     }
@@ -91,11 +113,11 @@ async function getStatus(sshPort: number): Promise<string> {
   }
 }
 
-async function getCost(sshPort: number): Promise<string> {
+async function getCost(httpPort: number): Promise<string> {
   try {
-    const { stdout, code } = await sshExec(sshPort, "curl -sf http://localhost:4200/cost");
-    if (code !== 0) return "  Could not retrieve cost data";
-    const data = JSON.parse(stdout);
+    const { ok, text } = await httpGet(httpPort, "/cost");
+    if (!ok) return "  Could not retrieve cost data";
+    const data = JSON.parse(text);
     const lines: string[] = [""];
     lines.push(chalk.bold("  Token Costs:"));
     lines.push(chalk.dim("  ─────────────────────────────────────────"));
@@ -129,24 +151,31 @@ export const shellCommand = new Command("shell")
         process.exit(1);
       }
 
-      if (!isVmRunning()) {
-        log.error("VM is not running. Start it with: buildwithnexus start");
+      if (!(await isNexusRunning())) {
+        log.error("NEXUS is not running. Start it with: buildwithnexus start");
         process.exit(1);
       }
 
       // Health check
       const spinner = createSpinner("Connecting to NEXUS...");
       spinner.start();
-      const health = await checkHealth(config.sshPort, true);
-      if (!health.serverHealthy) {
+      const { ok: serverHealthy, text: healthText } = await httpGet(config.httpPort, "/health");
+      if (!serverHealthy) {
         fail(spinner, "NEXUS engine is not responding");
         log.warn("Check status: buildwithnexus status");
         process.exit(1);
       }
       succeed(spinner, "Connected to NEXUS engine");
 
+      // Resolve tunnel URL if available
+      let tunnelUrl: string | null = null;
+      const tunnelRes = await httpGet(config.httpPort, "/tunnel-url");
+      if (tunnelRes.ok && tunnelRes.text.includes("https://")) {
+        tunnelUrl = tunnelRes.text.trim();
+      }
+
       // Show banner
-      showShellBanner(health);
+      showShellBanner({ containerRunning: true, serverHealthy: true, tunnelUrl });
 
       // Event stream (background)
       const eventStream = new EventStream((event) => {
@@ -160,7 +189,7 @@ export const shellCommand = new Command("shell")
         const thinkingSpinner = createSpinner("Processing...");
         thinkingSpinner.start();
         try {
-          const response = await sendMessage(config.sshPort, text);
+          const response = await sendMessage(config.httpPort, text);
           thinkingSpinner.stop();
           thinkingSpinner.clear();
           console.log("");
@@ -202,7 +231,7 @@ export const shellCommand = new Command("shell")
           while (true) {
             const brainstormSpinner = createSpinner("NEXUS team is discussing...");
             brainstormSpinner.start();
-            const response = await sendMessage(config.sshPort, currentMessage);
+            const response = await sendMessage(config.httpPort, currentMessage);
             brainstormSpinner.stop();
             brainstormSpinner.clear();
             console.log("");
@@ -222,7 +251,7 @@ export const shellCommand = new Command("shell")
             if (trimmed === "plan" || trimmed === "execute" || trimmed === "go") {
               const planSpinner = createSpinner("Handing off to NEXUS for execution planning...");
               planSpinner.start();
-              const planResponse = await sendMessage(config.sshPort, `[BRAINSTORM→PLAN] The CEO approves this direction from the brainstorm session. Draft a detailed execution plan with task assignments, timelines, and dependencies. Previous discussion context: ${idea}`);
+              const planResponse = await sendMessage(config.httpPort, `[BRAINSTORM→PLAN] The CEO approves this direction from the brainstorm session. Draft a detailed execution plan with task assignments, timelines, and dependencies. Previous discussion context: ${idea}`);
               planSpinner.stop();
               planSpinner.clear();
               console.log("");
@@ -243,7 +272,7 @@ export const shellCommand = new Command("shell")
         name: "status",
         description: "Show system health status",
         handler: async () => {
-          const result = await getStatus(config.sshPort);
+          const result = await getStatus(config.httpPort);
           console.log(result);
         },
       });
@@ -252,7 +281,7 @@ export const shellCommand = new Command("shell")
         name: "agents",
         description: "List registered agents",
         handler: async () => {
-          const result = await getAgentList(config.sshPort);
+          const result = await getAgentList(config.httpPort);
           console.log(result);
         },
       });
@@ -261,33 +290,40 @@ export const shellCommand = new Command("shell")
         name: "cost",
         description: "Show token usage and costs",
         handler: async () => {
-          const result = await getCost(config.sshPort);
+          const result = await getCost(config.httpPort);
           console.log(result);
         },
       });
 
       repl.registerCommand({
         name: "logs",
-        description: "Show recent server logs",
+        description: "Show recent container logs",
         handler: async () => {
-          const { stdout } = await sshExec(config.sshPort, "tail -30 /home/nexus/.nexus/logs/server.log 2>/dev/null");
+          const { execa } = await import("execa");
           console.log("");
           console.log(chalk.bold("  Recent Logs:"));
           console.log(chalk.dim("  ─────────────────────────────────────────"));
-          for (const line of redact(stdout).split("\n")) {
-            console.log(chalk.dim("  " + line));
+          try {
+            const { stdout } = await execa("docker", ["logs", "--tail", "30", "nexus"]);
+            for (const line of redact(stdout).split("\n")) {
+              console.log(chalk.dim("  " + line));
+            }
+          } catch {
+            console.log(chalk.dim("  Could not retrieve logs"));
           }
           console.log("");
         },
       });
 
       repl.registerCommand({
-        name: "ssh",
-        description: "Drop into the VM for debugging/inspection",
+        name: "exec",
+        description: "Drop into the container shell for debugging/inspection",
         handler: async () => {
-          const { openInteractiveSsh } = await import("../core/ssh.js");
+          const { execa } = await import("execa");
           eventStream.stop();
-          await openInteractiveSsh(config.sshPort);
+          try {
+            await execa("docker", ["exec", "-it", "nexus", "/bin/sh"], { stdio: "inherit" });
+          } catch { /* user exited */ }
           eventStream.start();
         },
       });
@@ -391,11 +427,11 @@ export const shellCommand = new Command("shell")
             {
               title: "Monitoring & Control",
               content: [
-                "  /status   — System health (VM, SSH, Docker, Engine)",
+                "  /status   — System health (Container, Engine)",
                 "  /agents   — List all 56 registered agents",
                 "  /cost     — Token usage and spend tracking",
-                "  /logs     — Server logs for debugging",
-                "  /ssh      — Drop into the VM directly",
+                "  /logs     — Container logs for debugging",
+                "  /exec     — Drop into the container shell",
                 "  /security — View the security posture",
                 "",
                 "You're in control. NEXUS executes.",

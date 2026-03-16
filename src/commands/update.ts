@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import { createSpinner, succeed, fail } from "../ui/spinner.js";
 import { log } from "../ui/logger.js";
 import { loadConfig } from "../core/secrets.js";
-import { isVmRunning } from "../core/qemu.js";
-import { sshExec, sshUploadFile } from "../core/ssh.js";
+import { isNexusRunning, dockerExec } from "../core/docker.js";
+import { execa } from "execa";
 
 function getReleaseTarball(): string {
   const dir = path.dirname(fileURLToPath(import.meta.url));
@@ -26,44 +26,44 @@ export const updateCommand = new Command("update")
       process.exit(1);
     }
 
-    if (!isVmRunning()) {
-      log.error("VM is not running. Start with: buildwithnexus start");
+    if (!(await isNexusRunning())) {
+      log.error("NEXUS is not running. Start with: buildwithnexus start");
       process.exit(1);
     }
 
     let spinner = createSpinner("Uploading release tarball...");
     spinner.start();
     const tarballPath = getReleaseTarball();
-    await sshUploadFile(config.sshPort, tarballPath, "/tmp/nexus-release.tar.gz");
+    await execa("docker", ["cp", tarballPath, "nexus:/tmp/nexus-release.tar.gz"]);
     succeed(spinner, "Tarball uploaded");
 
     spinner = createSpinner("Stopping NEXUS server...");
     spinner.start();
-    await sshExec(config.sshPort, "sudo systemctl stop nexus");
+    await dockerExec("sudo systemctl stop nexus");
     succeed(spinner, "Server stopped");
 
     spinner = createSpinner("Extracting new release...");
     spinner.start();
-    await sshExec(config.sshPort, "rm -rf /home/nexus/nexus/src /home/nexus/nexus/docker");
-    await sshExec(config.sshPort, "tar xzf /tmp/nexus-release.tar.gz -C /home/nexus/nexus");
-    await sshExec(config.sshPort, "rm -f /tmp/nexus-release.tar.gz");
+    await dockerExec("rm -rf /home/nexus/nexus/src /home/nexus/nexus/docker");
+    await dockerExec("tar xzf /tmp/nexus-release.tar.gz -C /home/nexus/nexus");
+    await dockerExec("rm -f /tmp/nexus-release.tar.gz");
     succeed(spinner, "Release extracted");
 
     spinner = createSpinner("Installing dependencies...");
     spinner.start();
-    await sshExec(config.sshPort, "cd /home/nexus/nexus && .venv/bin/pip install -r requirements.txt -q");
+    await dockerExec("cd /home/nexus/nexus && .venv/bin/pip install -r requirements.txt -q");
     succeed(spinner, "Dependencies installed");
 
     spinner = createSpinner("Rebuilding Docker sandbox...");
     spinner.start();
-    await sshExec(config.sshPort, "docker build -t nexus-cli-sandbox /home/nexus/nexus/docker/cli-sandbox/");
+    await dockerExec("docker build -t nexus-cli-sandbox /home/nexus/nexus/docker/cli-sandbox/");
     succeed(spinner, "Docker image rebuilt");
 
     spinner = createSpinner("Restarting NEXUS server...");
     spinner.start();
-    await sshExec(config.sshPort, "sudo systemctl start nexus");
+    await dockerExec("sudo systemctl start nexus");
     await new Promise((r) => setTimeout(r, 3000));
-    const health = await sshExec(config.sshPort, "curl -sf http://localhost:4200/health");
+    const health = await dockerExec("curl -sf http://localhost:4200/health");
     if (health.code === 0) {
       succeed(spinner, "NEXUS server restarted and healthy");
     } else {

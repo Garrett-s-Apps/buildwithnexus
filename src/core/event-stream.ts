@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { sshExec } from "./ssh.js";
+import { dockerExec } from "./docker.js";
 import { loadConfig } from "./secrets.js";
 import { redact } from "./dlp.js";
 
@@ -110,8 +110,7 @@ export class EventStream {
     this.pollInterval = setInterval(async () => {
       if (!this.active) return;
       try {
-        const { stdout, code } = await sshExec(
-          config.sshPort,
+        const { stdout, code } = await dockerExec(
           `curl -sf -H 'Last-Event-ID: ${this.lastId}' http://localhost:4200/events?timeout=1 2>/dev/null || true`,
         );
         if (code === 0 && stdout.trim()) {

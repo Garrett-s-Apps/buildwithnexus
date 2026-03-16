@@ -326,48 +326,46 @@ describe("addSshConfig", () => {
 });
 
 // ---------------------------------------------------------------------------
-// init.ts port ordering — addSshConfig called in Phase 6, after resolvePortConflicts
+// init.ts phase structure — Docker-first flow
 // ---------------------------------------------------------------------------
 
-describe("init.ts — addSshConfig is called in Phase 6 after port resolution", () => {
+describe("init.ts — Docker-first phase structure", () => {
   // Use node:fs/promises (not mocked) to read the real source file.
   // The top-level vi.mock("node:fs") stubs the sync API, but fs/promises is
   // a separate module binding and is untouched by that mock.
 
-  it("addSshConfig appears after resolvePortConflicts in the VM Launch phase block", async () => {
+  it("phases array contains the five required Docker-first phase names in order", async () => {
     const { readFile } = await import("node:fs/promises");
     const initSrc = await readFile(
       new URL("../src/commands/init.ts", import.meta.url).pathname,
       "utf-8",
     );
 
-    // Locate the "VM Launch" phase name in the phases array
-    const phase6Start = initSrc.indexOf('"VM Launch"');
-    expect(phase6Start, 'Phase named "VM Launch" must exist in init.ts').toBeGreaterThan(-1);
+    const expectedPhases = [
+      "Configuration",
+      "Docker Check",
+      "Pull Image",
+      "Launch",
+      "Health Check",
+    ];
 
-    // Both resolvePortConflicts and addSshConfig must appear after that marker
-    const resolveIdx = initSrc.indexOf("resolvePortConflicts", phase6Start);
-    const addSshIdx = initSrc.indexOf("addSshConfig(", phase6Start);
-
-    expect(resolveIdx, "resolvePortConflicts must appear in VM Launch phase").toBeGreaterThan(-1);
-    expect(addSshIdx, "addSshConfig must appear in VM Launch phase").toBeGreaterThan(-1);
-    // addSshConfig must come after resolvePortConflicts within the same phase
-    expect(addSshIdx, "addSshConfig must be called after resolvePortConflicts").toBeGreaterThan(resolveIdx);
+    let lastIdx = -1;
+    for (const phaseName of expectedPhases) {
+      const idx = initSrc.indexOf(`"${phaseName}"`, lastIdx + 1);
+      expect(idx, `Phase named "${phaseName}" must exist in init.ts after the previous phase`).toBeGreaterThan(lastIdx);
+      lastIdx = idx;
+    }
   });
 
-  it("addSshConfig does NOT appear in the SSH Key Setup phase block", async () => {
+  it("old QEMU phase names do not appear in init.ts", async () => {
     const { readFile } = await import("node:fs/promises");
     const initSrc = await readFile(
       new URL("../src/commands/init.ts", import.meta.url).pathname,
       "utf-8",
     );
 
-    const phase3Start = initSrc.indexOf('"SSH Key Setup"');
-    const phase4Start = initSrc.indexOf('"VM Image Download"');
-    expect(phase3Start, 'Phase named "SSH Key Setup" must exist in init.ts').toBeGreaterThan(-1);
-    expect(phase4Start, 'Phase named "VM Image Download" must exist after "SSH Key Setup"').toBeGreaterThan(phase3Start);
-
-    const phase3Block = initSrc.slice(phase3Start, phase4Start);
-    expect(phase3Block).not.toContain("addSshConfig(");
+    expect(initSrc).not.toContain('"VM Launch"');
+    expect(initSrc).not.toContain('"SSH Key Setup"');
+    expect(initSrc).not.toContain('"VM Image Download"');
   });
 });

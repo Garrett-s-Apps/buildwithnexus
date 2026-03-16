@@ -3,7 +3,7 @@ import chalk from "chalk";
 import fs from "node:fs";
 import { log } from "../ui/logger.js";
 import { detectPlatform } from "../core/platform.js";
-import { isQemuInstalled } from "../core/qemu.js";
+import { isDockerInstalled } from "../core/docker.js";
 import { NEXUS_HOME, loadConfig } from "../core/secrets.js";
 import path from "node:path";
 import { execa } from "execa";
@@ -25,20 +25,13 @@ export const doctorCommand = new Command("doctor")
     // Platform
     console.log(`  ${check(true)}  Platform: ${platform.os} ${platform.arch}`);
 
-    // QEMU
-    const qemuOk = await isQemuInstalled(platform);
-    if (qemuOk) {
-      const { stdout } = await execa(platform.qemuBinary, ["--version"]);
-      console.log(`  ${check(true)}  ${stdout.split("\n")[0]}`);
+    // Docker
+    const dockerOk = await isDockerInstalled();
+    if (dockerOk) {
+      console.log(`  ${check(true)}  Docker installed and running`);
     } else {
-      console.log(`  ${check(false)}  QEMU not installed`);
+      console.log(`  ${check(false)}  Docker not installed`);
     }
-
-    // mkisofs / genisoimage
-    let isoTool = false;
-    try { await execa("mkisofs", ["--version"]); isoTool = true; } catch { /* */ }
-    if (!isoTool) try { await execa("genisoimage", ["--version"]); isoTool = true; } catch { /* */ }
-    console.log(`  ${check(isoTool)}  ISO tool (mkisofs/genisoimage)`);
 
     // SSH key
     const keyExists = fs.existsSync(path.join(NEXUS_HOME, "ssh", "id_nexus_vm"));
@@ -48,13 +41,9 @@ export const doctorCommand = new Command("doctor")
     const config = loadConfig();
     console.log(`  ${check(!!config)}  Configuration`);
 
-    // Disk
-    const diskExists = fs.existsSync(path.join(NEXUS_HOME, "vm", "images", "nexus-vm-disk.qcow2"));
-    console.log(`  ${check(diskExists)}  VM disk image`);
-
     // Port availability
     if (config) {
-      for (const [name, port] of [["SSH", config.sshPort], ["HTTP", config.httpPort], ["HTTPS", config.httpsPort]] as const) {
+      for (const [name, port] of [["HTTP", config.httpPort], ["HTTPS", config.httpsPort]] as const) {
         try {
           const net = await import("node:net");
           const available = await new Promise<boolean>((resolve) => {
@@ -70,14 +59,10 @@ export const doctorCommand = new Command("doctor")
       }
     }
 
-    // BIOS file
-    const biosOk = fs.existsSync(platform.biosPath);
-    console.log(`  ${check(biosOk)}  UEFI firmware ${biosOk ? "" : chalk.dim(platform.biosPath)}`);
-
     console.log("");
-    if (qemuOk && isoTool && biosOk) {
+    if (dockerOk) {
       log.success("Environment ready for NEXUS");
     } else {
-      log.warn("Some prerequisites missing — fix the items marked ✗ above");
+      log.warn("Docker is required — install it from https://docs.docker.com/get-docker/");
     }
   });

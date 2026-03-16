@@ -1,4 +1,4 @@
-import { sshExec } from "./ssh.js";
+import { dockerExec } from "./docker.js";
 
 export interface HealthStatus {
   vmRunning: boolean;
@@ -13,7 +13,7 @@ export interface HealthStatus {
   lastChecked: string;
 }
 
-export async function checkHealth(port: number, vmRunning: boolean): Promise<HealthStatus> {
+export async function checkHealth(vmRunning: boolean): Promise<HealthStatus> {
   const status: HealthStatus = {
     vmRunning,
     sshReady: false,
@@ -29,24 +29,19 @@ export async function checkHealth(port: number, vmRunning: boolean): Promise<Hea
 
   if (!vmRunning) return status;
 
-  // Check SSH
-  try {
-    const { code } = await sshExec(port, "echo ok");
-    status.sshReady = code === 0;
-  } catch {
-    return status;
-  }
+  // SSH is no longer used — mark sshReady true when container is running
+  status.sshReady = true;
 
-  // Check Docker (capture version)
+  // Check Docker inside container
   try {
-    const { stdout, code } = await sshExec(port, "docker version --format '{{.Server.Version}}'");
+    const { stdout, code } = await dockerExec("docker version --format '{{.Server.Version}}'");
     status.dockerReady = code === 0 && stdout.trim().length > 0;
     if (status.dockerReady) status.dockerVersion = stdout.trim();
   } catch { /* not ready */ }
 
-  // Check NEXUS server (capture version if exposed)
+  // Check NEXUS server
   try {
-    const { stdout, code } = await sshExec(port, "curl -sf http://localhost:4200/health");
+    const { stdout, code } = await dockerExec("curl -sf http://localhost:4200/health");
     status.serverHealthy = code === 0 && stdout.includes("ok");
     if (status.serverHealthy) {
       try {
@@ -58,21 +53,21 @@ export async function checkHealth(port: number, vmRunning: boolean): Promise<Hea
 
   // Check disk usage
   try {
-    const { stdout } = await sshExec(port, "df / --output=pcent | tail -1 | tr -dc '0-9'");
+    const { stdout } = await dockerExec("df / --output=pcent | tail -1 | tr -dc '0-9'");
     const pct = parseInt(stdout.trim(), 10);
     if (!isNaN(pct)) status.diskUsagePercent = pct;
   } catch { /* ignore */ }
 
   // Check uptime
   try {
-    const { stdout } = await sshExec(port, "awk '{print int($1)}' /proc/uptime 2>/dev/null");
+    const { stdout } = await dockerExec("awk '{print int($1)}' /proc/uptime 2>/dev/null");
     const up = parseInt(stdout.trim(), 10);
     if (!isNaN(up)) status.uptimeSeconds = up;
   } catch { /* ignore */ }
 
   // Check tunnel
   try {
-    const { stdout } = await sshExec(port, "cat /home/nexus/.nexus/tunnel-url.txt 2>/dev/null");
+    const { stdout } = await dockerExec("cat /home/nexus/.nexus/tunnel-url.txt 2>/dev/null");
     if (stdout.includes("https://")) {
       status.tunnelUrl = stdout.trim();
     }
@@ -81,7 +76,7 @@ export async function checkHealth(port: number, vmRunning: boolean): Promise<Hea
   return status;
 }
 
-export async function waitForServer(port: number, timeoutMs: number = 900_000): Promise<boolean> {
+export async function waitForServer(timeoutMs: number = 900_000): Promise<boolean> {
   const start = Date.now();
   let lastLog = 0;
   let attempt = 0;
@@ -90,7 +85,7 @@ export async function waitForServer(port: number, timeoutMs: number = 900_000): 
 
   while (Date.now() - start < timeoutMs) {
     try {
-      const { stdout, code } = await sshExec(port, "curl -sf http://localhost:4200/health");
+      const { stdout, code } = await dockerExec("curl -sf http://localhost:4200/health");
       if (code === 0 && stdout.includes("ok")) return true;
     } catch { /* not ready yet */ }
 
@@ -98,38 +93,8 @@ export async function waitForServer(port: number, timeoutMs: number = 900_000): 
     if (elapsed - lastLog >= 30_000) {
       lastLog = elapsed;
       try {
-        const { stdout } = await sshExec(port, "systemctl is-active nexus 2>/dev/null || echo 'starting...'");
+        const { stdout } = await dockerExec("systemctl is-active nexus 2>/dev/null || echo 'starting...'");
         process.stderr.write(`\n  [server ${Math.round(elapsed / 1000)}s] ${stdout.trim().slice(0, 120)}\n`);
-      } catch { /* ignore */ }
-    }
-
-    const delay = backoffMs(attempt++);
-    const remaining = timeoutMs - (Date.now() - start);
-    if (remaining <= 0) break;
-    await new Promise((r) => setTimeout(r, Math.min(delay, remaining)));
-  }
-  return false;
-}
-
-export async function waitForCloudInit(port: number, timeoutMs: number = 1_800_000): Promise<boolean> {
-  const start = Date.now();
-  let lastLog = 0;
-  let attempt = 0;
-  // Exponential backoff: 3s → 6s → 12s → 30s max (cloud-init takes minutes, cap keeps progress visible)
-  const backoffMs = (n: number) => Math.min(3000 * Math.pow(2, n), 30_000);
-
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const { code } = await sshExec(port, "test -f /var/lib/cloud/instance/boot-finished");
-      if (code === 0) return true;
-    } catch { /* not ready */ }
-
-    const elapsed = Date.now() - start;
-    if (elapsed - lastLog >= 60_000) {
-      lastLog = elapsed;
-      try {
-        const { stdout } = await sshExec(port, "tail -1 /var/log/cloud-init-output.log 2>/dev/null || echo 'waiting...'");
-        process.stderr.write(`\n  [cloud-init ${Math.round(elapsed / 1000)}s] ${stdout.trim().slice(0, 120)}\n`);
       } catch { /* ignore */ }
     }
 

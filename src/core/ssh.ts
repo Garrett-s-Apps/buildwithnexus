@@ -6,7 +6,7 @@ import { execa } from "execa";
 import { NodeSSH } from "node-ssh";
 import { NEXUS_HOME } from "./secrets.js";
 import { audit, redact, scrubEnv } from "./dlp.js";
-import { isVmRunning } from "./qemu.js";
+import { isNexusRunning } from "./docker.js";
 
 const SSH_DIR = path.join(NEXUS_HOME, "ssh");
 const SSH_KEY = path.join(SSH_DIR, "id_nexus_vm");
@@ -151,9 +151,9 @@ export async function waitForSsh(port: number, timeoutMs: number = 900_000): Pro
   const backoffMs = (n: number) => Math.min(3000 * Math.pow(2, n), 30_000);
 
   while (Date.now() - start < timeoutMs) {
-    // QEMU liveness guard: fail fast if VM is dead
-    if (!isVmRunning()) {
-      process.stderr.write(`\n  [ssh] QEMU process is not running — aborting SSH wait\n`);
+    // Docker container liveness guard: fail fast if container is dead
+    if (!(await isNexusRunning())) {
+      process.stderr.write(`\n  [ssh] NEXUS container is not running — aborting SSH wait\n`);
       return false;
     }
 
@@ -202,12 +202,12 @@ export async function waitForSsh(port: number, timeoutMs: number = 900_000): Pro
     const elapsed = Date.now() - start;
     if (elapsed - lastLogAt >= 30_000) {
       lastLogAt = elapsed;
-      const vmStatus = isVmRunning() ? "running" : "stopped";
+      const containerStatus = await isNexusRunning() ? "running" : "stopped";
       const detail = lastCategory === "auth_pending"
         ? "SSH daemon active but nexus user not yet created"
         : "port not reachable";
       process.stderr.write(
-        `\n  [ssh ${Math.round(elapsed / 1000)}s] attempt ${attempt} | category: ${lastCategory} | VM: ${vmStatus} | ${detail}\n`
+        `\n  [ssh ${Math.round(elapsed / 1000)}s] attempt ${attempt} | category: ${lastCategory} | Container: ${containerStatus} | ${detail}\n`
       );
     }
 

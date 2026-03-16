@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { installCommand } from "./commands/install.js";
 import { initCommand } from "./commands/init.js";
 import { startCommand } from "./commands/start.js";
 import { stopCommand } from "./commands/stop.js";
@@ -32,6 +33,7 @@ export const cli = new Command()
   .description("Auto-scaffold and launch a fully autonomous NEXUS runtime")
   .version(getVersionStatic());
 
+cli.addCommand(installCommand);
 cli.addCommand(initCommand);
 cli.addCommand(startCommand);
 cli.addCommand(stopCommand);
@@ -46,18 +48,7 @@ cli.addCommand(brainstormCommand);
 cli.addCommand(ninetyNineCommand);
 cli.addCommand(shellCommand);
 
-// Default action: launch interactive shell if configured, else show help
-cli.action(async () => {
-  try {
-    const { loadConfig } = await import("./core/secrets.js");
-    const { isVmRunning } = await import("./core/qemu.js");
-    const config = loadConfig();
-    if (config && isVmRunning()) {
-      await shellCommand.parseAsync([], { from: "user" });
-      return;
-    }
-  } catch {
-    // Fall through to help
-  }
+// Default action: show help
+cli.action(() => {
   cli.help();
 });

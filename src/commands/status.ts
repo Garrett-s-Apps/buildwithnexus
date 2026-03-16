@@ -2,8 +2,41 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { log } from "../ui/logger.js";
 import { loadConfig } from "../core/secrets.js";
-import { isVmRunning, getVmPid } from "../core/qemu.js";
-import { checkHealth } from "../core/health.js";
+import { isNexusRunning } from "../core/docker.js";
+
+interface HealthResponse {
+  status?: string;
+  version?: string;
+  uptime?: number;
+  [key: string]: unknown;
+}
+
+async function checkHttpHealth(port: number): Promise<{ healthy: boolean; version: string | null; uptimeSeconds: number | null }> {
+  try {
+    const res = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return { healthy: false, version: null, uptimeSeconds: null };
+    const text = await res.text();
+    let version: string | null = null;
+    let uptimeSeconds: number | null = null;
+    try {
+      const parsed = JSON.parse(text) as HealthResponse;
+      if (typeof parsed.version === "string") version = parsed.version;
+      if (typeof parsed.uptime === "number") uptimeSeconds = parsed.uptime;
+    } catch { /* plain-text ok response */ }
+    const healthy = text.includes("ok") || res.status === 200;
+    return { healthy, version, uptimeSeconds };
+  } catch {
+    return { healthy: false, version: null, uptimeSeconds: null };
+  }
+}
+
+function formatUptime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${h}h ${m}m`;
+}
 
 export const statusCommand = new Command("status")
   .description("Check NEXUS runtime health")
@@ -15,31 +48,56 @@ export const statusCommand = new Command("status")
       process.exit(1);
     }
 
-    const vmRunning = isVmRunning();
-    const health = await checkHealth(config.sshPort, vmRunning);
+    const containerRunning = await isNexusRunning();
+    const { healthy, version, uptimeSeconds } = containerRunning
+      ? await checkHttpHealth(config.httpPort)
+      : { healthy: false, version: null, uptimeSeconds: null };
 
     if (opts.json) {
-      console.log(JSON.stringify({ ...health, pid: getVmPid(), ports: { ssh: config.sshPort, http: config.httpPort, https: config.httpsPort } }, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            containerRunning,
+            healthy,
+            version,
+            uptimeSeconds,
+            port: config.httpPort,
+            lastChecked: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+      );
       return;
     }
 
-    const check = (ok: boolean) => ok ? chalk.green("●") : chalk.red("○");
+    const check = (ok: boolean) => (ok ? chalk.green("●") : chalk.red("○"));
 
     console.log("");
     console.log(chalk.bold("  NEXUS Runtime Status"));
     console.log("");
-    console.log(`  ${check(health.vmRunning)}  VM         ${health.vmRunning ? chalk.green("running") + chalk.dim(` (PID ${getVmPid()})`) : chalk.red("stopped")}`);
-    console.log(`  ${check(health.sshReady)}  SSH        ${health.sshReady ? chalk.green("connected") + chalk.dim(` (port ${config.sshPort})`) : chalk.red("unreachable")}`);
-    console.log(`  ${check(health.dockerReady)}  Docker     ${health.dockerReady ? chalk.green("ready") + (health.dockerVersion ? chalk.dim(` v${health.dockerVersion}`) : "") : chalk.red("not ready")}`);
-    console.log(`  ${check(health.serverHealthy)}  Server     ${health.serverHealthy ? chalk.green("healthy") + chalk.dim(` (port ${config.httpPort})`) + (health.serverVersion ? chalk.dim(` v${health.serverVersion}`) : "") : chalk.red("unhealthy")}`);
-    console.log(`  ${check(!!health.tunnelUrl)}  Tunnel     ${health.tunnelUrl ? chalk.green(health.tunnelUrl) : chalk.dim("not active")}`);
-    if (health.diskUsagePercent !== null) {
-      const diskOk = health.diskUsagePercent < 85;
-      console.log(`  ${check(diskOk)}  Disk       ${diskOk ? chalk.green(`${health.diskUsagePercent}% used`) : chalk.yellow(`${health.diskUsagePercent}% used — consider cleanup`)}`);
-    }
+    console.log(
+      `  ${check(containerRunning)}  Container  ${
+        containerRunning ? chalk.green("running") : chalk.red("stopped")
+      }`,
+    );
+    console.log(
+      `  ${check(healthy)}  Health     ${
+        healthy
+          ? chalk.green("healthy") +
+            chalk.dim(` (port ${config.httpPort})`) +
+            (version ? chalk.dim(` v${version}`) : "") +
+            (uptimeSeconds !== null ? chalk.dim(` up ${formatUptime(uptimeSeconds)}`) : "")
+          : chalk.red("unhealthy")
+      }`,
+    );
     console.log("");
 
-    if (health.serverHealthy) {
-      log.success(`NEXUS CLI ready — connect via: buildwithnexus ssh`);
+    if (healthy) {
+      log.success("NEXUS is running and healthy");
+    } else if (containerRunning) {
+      log.warn("Container is running but health check failed");
+    } else {
+      log.error("NEXUS container is not running. Start with: buildwithnexus start");
     }
   });

@@ -4,8 +4,7 @@ import { input } from "@inquirer/prompts";
 import { log } from "../ui/logger.js";
 import { createSpinner, succeed, fail } from "../ui/spinner.js";
 import { loadConfig } from "../core/secrets.js";
-import { isVmRunning } from "../core/qemu.js";
-import { sshExec } from "../core/ssh.js";
+import { isNexusRunning, dockerExec } from "../core/docker.js";
 import { redact, redactError, shellEscape } from "../core/dlp.js";
 
 const AGENT_PREFIX = chalk.bold.green("  99 ❯");
@@ -48,7 +47,6 @@ function parsePrefixes(instruction: string): {
 }
 
 async function sendToNexus(
-  sshPort: number,
   instruction: string,
   files: string[],
   rules: string[],
@@ -62,8 +60,7 @@ async function sendToNexus(
   });
   const escaped = shellEscape(payload);
 
-  const { stdout, code } = await sshExec(
-    sshPort,
+  const { stdout, code } = await dockerExec(
     `curl -sf -X POST http://localhost:4200/message -H 'Content-Type: application/json' -d ${escaped}`,
   );
 
@@ -97,15 +94,14 @@ export const ninetyNineCommand = new Command("99")
         process.exit(1);
       }
 
-      if (!isVmRunning()) {
-        log.error("VM is not running. Start it with: buildwithnexus start");
+      if (!(await isNexusRunning())) {
+        log.error("NEXUS is not running. Start it with: buildwithnexus start");
         process.exit(1);
       }
 
       const spinner = createSpinner("Connecting to NEXUS...");
       spinner.start();
-      const { stdout: healthCheck, code: healthCode } = await sshExec(
-        config.sshPort,
+      const { stdout: healthCheck, code: healthCode } = await dockerExec(
         "curl -sf http://localhost:4200/health",
       );
       if (healthCode !== 0 || !healthCheck.includes("ok")) {
@@ -141,7 +137,7 @@ export const ninetyNineCommand = new Command("99")
 
         const thinking = createSpinner("NEXUS engineers analyzing the file...");
         thinking.start();
-        const response = await sendToNexus(config.sshPort, fullInstruction, [opts.edit, ...files], rules, cwd);
+        const response = await sendToNexus(fullInstruction, [opts.edit, ...files], rules, cwd);
         thinking.stop();
         thinking.clear();
 
@@ -159,7 +155,7 @@ export const ninetyNineCommand = new Command("99")
 
         const thinking = createSpinner("Searching with NEXUS context...");
         thinking.start();
-        const response = await sendToNexus(config.sshPort, fullInstruction, [], [], cwd);
+        const response = await sendToNexus(fullInstruction, [], [], cwd);
         thinking.stop();
         thinking.clear();
 
@@ -177,7 +173,7 @@ export const ninetyNineCommand = new Command("99")
 
         const thinking = createSpinner("NEXUS debugger agent analyzing...");
         thinking.start();
-        const response = await sendToNexus(config.sshPort, fullInstruction, [], [], cwd);
+        const response = await sendToNexus(fullInstruction, [], [], cwd);
         thinking.stop();
         thinking.clear();
 
@@ -230,7 +226,7 @@ export const ninetyNineCommand = new Command("99")
         );
         thinking.start();
 
-        const response = await sendToNexus(config.sshPort, nexusInstruction, files, rules, cwd);
+        const response = await sendToNexus(nexusInstruction, files, rules, cwd);
 
         thinking.stop();
         thinking.clear();

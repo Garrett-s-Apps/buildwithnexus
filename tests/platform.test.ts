@@ -13,10 +13,7 @@ describe("detectPlatform", () => {
     const info = detectPlatform();
     expect(info).toHaveProperty("os");
     expect(info).toHaveProperty("arch");
-    expect(info).toHaveProperty("qemuBinary");
-    expect(info).toHaveProperty("qemuCpuFlag");
-    expect(info).toHaveProperty("ubuntuImage");
-    expect(info).toHaveProperty("biosPath");
+    expect(info).toHaveProperty("dockerPlatform");
   });
 
   it("detects a known OS", () => {
@@ -29,22 +26,17 @@ describe("detectPlatform", () => {
     expect(["arm64", "x64"]).toContain(info.arch);
   });
 
-  it("has a valid qemuBinary", () => {
-    const info = detectPlatform();
-    expect(info.qemuBinary).toMatch(/^qemu-system-(aarch64|x86_64)$/);
-  });
-
-  it("uses arm64 Ubuntu image on arm64", () => {
+  it("uses arm64 Docker platform on arm64", () => {
     const info = detectPlatform();
     if (os.arch() === "arm64") {
-      expect(info.ubuntuImage).toContain("arm64");
+      expect(info.dockerPlatform).toBe("linux/arm64");
     }
   });
 
-  it("uses amd64 Ubuntu image on x64 Linux", () => {
+  it("uses amd64 Docker platform on x64 Linux", () => {
     const info = detectPlatform();
     if (os.platform() === "linux" && os.arch() === "x64") {
-      expect(info.ubuntuImage).toContain("amd64");
+      expect(info.dockerPlatform).toBe("linux/amd64");
     }
   });
 });

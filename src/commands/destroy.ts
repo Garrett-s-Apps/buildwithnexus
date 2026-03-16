@@ -5,8 +5,7 @@ import { input } from "@inquirer/prompts";
 import { createSpinner, succeed } from "../ui/spinner.js";
 import { log } from "../ui/logger.js";
 import { NEXUS_HOME, loadConfig } from "../core/secrets.js";
-import { isVmRunning, stopVm } from "../core/qemu.js";
-import { stopTunnel } from "../core/tunnel.js";
+import { isNexusRunning, stopNexus, dockerExec } from "../core/docker.js";
 import path from "node:path";
 
 export const destroyCommand = new Command("destroy")
@@ -18,8 +17,7 @@ export const destroyCommand = new Command("destroy")
     if (!opts.force) {
       console.log("");
       console.log(chalk.red.bold("  This will permanently delete:"));
-      console.log(chalk.red("  - NEXUS VM and all data inside it"));
-      console.log(chalk.red("  - VM disk images"));
+      console.log(chalk.red("  - NEXUS container and all data inside it"));
       console.log(chalk.red("  - SSH keys"));
       console.log(chalk.red("  - Configuration and API keys"));
       console.log("");
@@ -36,10 +34,10 @@ export const destroyCommand = new Command("destroy")
     const spinner = createSpinner("Destroying NEXUS runtime...");
     spinner.start();
 
-    // Stop tunnel + VM
-    if (config && isVmRunning()) {
-      try { await stopTunnel(config.sshPort); } catch { /* */ }
-      stopVm();
+    // Stop tunnel + container
+    if (config && await isNexusRunning()) {
+      try { await dockerExec("pkill -f cloudflared || true"); } catch { /* */ }
+      await stopNexus();
     }
 
     // Remove SSH config entry

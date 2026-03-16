@@ -1,7 +1,7 @@
 // src/cli/init-command.ts
 import fs from 'fs';
 import path from 'path';
-import { input, confirm } from '@inquirer/prompts';
+import { input, confirm, password } from '@inquirer/prompts';
 
 export async function deepAgentsInitCommand() {
   console.log(`
@@ -30,21 +30,19 @@ export async function deepAgentsInitCommand() {
     '(You can set these later by editing .env.local)\n'
   );
 
-  // Collect API keys
-  const anthropicKey = await input({
+  // Collect API keys (using password input for security - shows asterisks)
+  const anthropicKey = await password({
     message: 'ANTHROPIC_API_KEY (Claude)',
-    default: '',
     validate: (val) => {
       if (!val) {
-        return 'At least one API key is required';
+        return 'API key is required';
       }
       return true;
     },
   });
 
-  const openaiKey = await input({
-    message: 'OPENAI_API_KEY (GPT - optional)',
-    default: '',
+  const openaiKey = await password({
+    message: 'OPENAI_API_KEY (GPT - optional, press Enter to skip)',
   });
 
   const backendUrl = await input({

@@ -183,6 +183,12 @@
       "type": "file"
     },
     {
+      "path": "src/cli/init-command.ts",
+      "accessCount": 5,
+      "lastAccessed": 1773680893885,
+      "type": "file"
+    },
+    {
       "path": "src/cli/intent-classifier.ts",
       "accessCount": 4,
       "lastAccessed": 1773676277074,
@@ -216,12 +222,6 @@
       "path": "src/deep-agents/dashboard/server.ts",
       "accessCount": 2,
       "lastAccessed": 1773676439991,
-      "type": "file"
-    },
-    {
-      "path": "src/cli/init-command.ts",
-      "accessCount": 2,
-      "lastAccessed": 1773680444697,
       "type": "file"
     },
     {

@@ -2,159 +2,166 @@ import chalk from 'chalk';
 
 export type Mode = 'PLAN' | 'BUILD' | 'BRAINSTORM';
 
+// Semantic color roles (respects terminal light/dark themes)
+const colors = {
+  accent: chalk.hex('#7D56F4'),    // Brand purple
+  success: chalk.hex('#00FF87'),   // Bright green
+  warning: chalk.hex('#FFB86C'),   // Amber
+  info: chalk.hex('#8BE9FD'),      // Cyan
+  muted: chalk.gray,               // Adaptive gray
+  error: chalk.red,
+};
+
+// Spinner frames (Braille characters for smooth animation)
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+const STATUS_SYMBOLS = {
+  done: colors.success('✔'),
+  active: colors.info('◉'),
+  pending: colors.muted('○'),
+  error: colors.error('✖'),
+};
+
 export class TUI {
   private taskStartTime: number = 0;
   private eventCount: number = 0;
+  private spinnerIndex: number = 0;
+
+  private getSpinner(): string {
+    const frame = SPINNER_FRAMES[this.spinnerIndex % SPINNER_FRAMES.length];
+    this.spinnerIndex++;
+    return frame;
+  }
 
   displayHeader(task: string, agent: string) {
     console.clear();
-    console.log(
-      chalk.cyan('╔════════════════════════════════════════════════════════════╗')
+
+    // Header with rounded borders (friendly, modern)
+    const headerBox = this.makeRoundedBox(
+      colors.accent('🚀 NEXUS - Autonomous Agent Orchestration'),
+      62,
+      colors.accent
     );
-    console.log(
-      chalk.cyan('║') +
-        chalk.bold.white('        🚀 Nexus - Autonomous Agent Orchestration             ') +
-        chalk.cyan('║')
-    );
-    console.log(
-      chalk.cyan('╚════════════════════════════════════════════════════════════╝')
-    );
+    console.log(headerBox);
     console.log('');
-    console.log(chalk.bold('📋 Task:'), task);
-    console.log(chalk.bold('👤 Agent:'), chalk.blue(agent));
-    console.log(chalk.gray('─'.repeat(60)));
+
+    console.log(colors.muted('Task') + colors.muted(':  ') + chalk.white(task));
+    console.log(colors.muted('Agent') + colors.muted(': ') + colors.info(agent));
     console.log('');
     this.taskStartTime = Date.now();
   }
 
   displayConnecting() {
-    console.log(chalk.yellow('⏳ Connecting to backend...'));
+    console.log(`${this.getSpinner()} ${colors.warning('Connecting to backend...')}`);
   }
 
   displayConnected(runId: string) {
-    console.log(chalk.green('✓ Connected'), chalk.gray(`(Run ID: ${runId})`));
-    console.log(chalk.gray('─'.repeat(60)));
+    console.log(`${STATUS_SYMBOLS.done} Connected • ${colors.muted(`run: ${runId}`)}`);
     console.log('');
   }
 
   displayStreamStart() {
-    console.log(chalk.bold.cyan('📡 Streaming Events:'));
+    console.log(chalk.bold(colors.accent('📡 Streaming Events')));
     console.log('');
   }
 
   displayPlan(task: string, steps: string[]) {
     console.log('');
-    console.log(chalk.bold.cyan('🔍 Chief of Staff Analysis'));
-    console.log(chalk.gray('─'.repeat(60)));
+
+    // Plan box with double borders (authority, structure)
+    const planHeader = colors.accent('Plan Breakdown');
+    const planLines: string[] = [];
+
     steps.forEach((step, i) => {
-      console.log(`  ${chalk.bold.white(`Step ${i + 1}:`)} ${chalk.white(step)}`);
+      planLines.push(`  ${STATUS_SYMBOLS.pending}  ${chalk.white(`Step ${i + 1}:`)} ${step}`);
     });
+
+    const planBox = this.makeDoubleBox(planHeader, planLines.join('\n'), 62, colors.accent);
+    console.log(planBox);
     console.log('');
   }
 
   displayEvent(type: string, data: Record<string, unknown>) {
     this.eventCount++;
-
     const content = (data['content'] as string) || '';
 
     if (type === 'agent_working') {
       const agent = (data['agent'] as string) || 'Agent';
       const agentTask = (data['task'] as string) || '';
       console.log('');
-      console.log(`  ${chalk.bold.blue('👤')} ${chalk.bold.blue(agent)} ${chalk.gray('working on:')} ${chalk.white(agentTask)}`);
+      console.log(`  ${colors.info('👤')} ${colors.info(chalk.bold(agent))}`);
+      console.log(`     ${colors.muted('→')} ${agentTask}`);
       return;
     }
 
     if (type === 'agent_result') {
       const result = (data['result'] as string) || '';
       let displayResult = result;
-      if (displayResult.length > 120) {
-        displayResult = displayResult.substring(0, 117) + '...';
+      if (displayResult.length > 100) {
+        displayResult = displayResult.substring(0, 97) + '...';
       }
-      console.log(`     ${chalk.green('✓')} ${chalk.green(displayResult)}`);
+      console.log(`  ${STATUS_SYMBOLS.done} ${chalk.white(displayResult)}`);
       return;
     }
 
-    const emoji: { [key: string]: string } = {
-      thought: '💭',
-      action: '🔨',
-      observation: '✓',
-      started: '▶️',
-      done: '✨',
-      execution_complete: '✨',
-      error: '❌',
+    // Event icons with semantic meaning
+    const eventConfig: Record<string, { icon: string; color: (s: string) => string }> = {
+      thought: { icon: '💭', color: colors.info },
+      action: { icon: '⚡', color: colors.warning },
+      observation: { icon: '✓', color: colors.success },
+      started: { icon: '▶', color: colors.info },
+      done: { icon: '✨', color: colors.success },
+      execution_complete: { icon: '✨', color: colors.success },
+      error: { icon: '✖', color: colors.error },
     };
 
-    const color: { [key: string]: (s: string) => string } = {
-      thought: chalk.cyan,
-      action: chalk.yellow,
-      observation: chalk.green,
-      started: chalk.blue,
-      done: chalk.magenta,
-      execution_complete: chalk.magenta,
-      error: chalk.red,
-    };
-
-    const icon = emoji[type] || '●';
-    const colorFn = color[type] || chalk.white;
-
-    // Truncate long content for display
+    const config = eventConfig[type] || { icon: '●', color: colors.muted };
     let displayContent = content;
-    if (displayContent.length > 120) {
-      displayContent = displayContent.substring(0, 117) + '...';
+    if (displayContent.length > 100) {
+      displayContent = displayContent.substring(0, 97) + '...';
     }
 
-    console.log(`  ${icon} ${colorFn(displayContent)}`);
+    console.log(`  ${config.icon} ${config.color(displayContent)}`);
   }
 
   displayResults(summary: string, todosCompleted: number) {
     console.log('');
-    console.log(chalk.gray('─'.repeat(60)));
-    console.log(chalk.bold.green('✨ Complete!'));
+    console.log(colors.success('━'.repeat(60)));
+    console.log(colors.success.bold('✨ Execution Complete'));
+    console.log('');
+
     const lines = summary.split('\n');
     for (const line of lines) {
-      console.log(`  ${chalk.white(line)}`);
+      console.log(`  ${colors.success('│')} ${chalk.white(line)}`);
     }
-    console.log(chalk.gray(`  ${todosCompleted} step(s) completed`));
+
+    console.log('');
+    console.log(`  ${colors.muted(`${todosCompleted} subtask(s) completed`)}`);
     console.log('');
   }
 
   displayError(error: string) {
     console.log('');
-    console.log(chalk.red.bold('❌ Error Occurred:'));
-    console.log(chalk.red(error));
+    console.log(colors.error('❌ Error'));
+    console.log(colors.error(error));
     console.log('');
   }
 
   displayComplete(duration: number) {
+    const seconds = (duration / 1000).toFixed(1);
     console.log('');
-    console.log(chalk.gray('─'.repeat(60)));
-    console.log(
-      chalk.green.bold('✨ Workflow Complete!') +
-        chalk.gray(` (${duration}ms, ${this.eventCount} events)`)
-    );
+    console.log(colors.success.bold(`✨ Complete in ${seconds}s`));
+    console.log(colors.muted(`${this.eventCount} event(s) streamed`));
     console.log('');
   }
 
   displayBox(title: string, content: string) {
-    const width = 60;
-    const borderColor = chalk.blue;
-
-    console.log(borderColor('┌' + '─'.repeat(width - 2) + '┐'));
-    console.log(
-      borderColor('│') +
-        chalk.bold.white(` ${title}`.padEnd(width - 3)) +
-        borderColor('│')
-    );
-    console.log(borderColor('├' + '─'.repeat(width - 2) + '┤'));
-
+    const box = this.makeRoundedBox(title, 60, colors.accent);
+    console.log(box);
     const lines = content.split('\n');
     for (const line of lines) {
-      const padded = line.substring(0, width - 4).padEnd(width - 4);
-      console.log(borderColor('│') + '  ' + padded + borderColor('│'));
+      const padded = line.substring(0, 56).padEnd(56);
+      console.log(`  ${padded}`);
     }
-
-    console.log(borderColor('└' + '─'.repeat(width - 2) + '┘'));
     console.log('');
   }
 
@@ -164,73 +171,127 @@ export class TUI {
 
   displayModeBar(current: Mode) {
     const modes: Mode[] = ['PLAN', 'BUILD', 'BRAINSTORM'];
-    const modeColor: Record<Mode, (s: string) => string> = {
-      PLAN: chalk.bold.cyan,
-      BUILD: chalk.bold.green,
-      BRAINSTORM: chalk.bold.blue,
+    const modeConfig: Record<Mode, { icon: string; color: (s: string) => string }> = {
+      PLAN: { icon: '📋', color: colors.info },
+      BUILD: { icon: '⚙️', color: colors.success },
+      BRAINSTORM: { icon: '💡', color: chalk.blue },
     };
 
     const parts = modes.map((m) => {
+      const config = modeConfig[m];
+      const label = `${config.icon} ${m}`;
       if (m === current) {
-        return modeColor[m](`[${m}]`);
+        return config.color.bold(label);
       }
-      return chalk.gray(m);
+      return colors.muted(label);
     });
 
-    console.log(chalk.gray('MODE: ') + parts.join(chalk.gray(' | ')));
-    console.log(chalk.gray('Type "switch" or "s" to change modes'));
-    console.log(chalk.gray('─'.repeat(60)));
+    console.log(parts.join(colors.muted('  •  ')));
+    console.log(colors.muted('[s] switch mode'));
+    console.log('');
   }
 
   displayModeHeader(mode: Mode) {
-    const modeColor: Record<Mode, (s: string) => string> = {
-      PLAN: chalk.bold.cyan,
-      BUILD: chalk.bold.green,
-      BRAINSTORM: chalk.bold.blue,
-    };
-    const modeIcon: Record<Mode, string> = {
-      PLAN: '📋',
-      BUILD: '⚙️ ',
-      BRAINSTORM: '💡',
-    };
-    const modeDesc: Record<Mode, string> = {
-      PLAN: 'Plan & review steps before executing',
-      BUILD: 'Execute immediately with live streaming',
-      BRAINSTORM: 'Free-form Q&A and idea exploration',
+    const config: Record<Mode, { icon: string; desc: string; color: (s: string) => string }> = {
+      PLAN: {
+        icon: '📋',
+        desc: 'Break down and review steps',
+        color: colors.info,
+      },
+      BUILD: {
+        icon: '⚙️',
+        desc: 'Execute with live streaming',
+        color: colors.success,
+      },
+      BRAINSTORM: {
+        icon: '💡',
+        desc: 'Free-form Q&A and exploration',
+        color: chalk.blue,
+      },
     };
 
+    const c = config[mode];
     console.log('');
-    console.log(modeColor[mode](`${modeIcon[mode]} ${mode} MODE`));
-    console.log(chalk.gray(modeDesc[mode]));
+    console.log(c.color.bold(`${c.icon} ${mode}`));
+    console.log(colors.muted(c.desc));
     console.log('');
   }
 
   displaySuggestedMode(mode: Mode, task: string) {
     const modeColor: Record<Mode, (s: string) => string> = {
-      PLAN: chalk.cyan,
-      BUILD: chalk.green,
+      PLAN: colors.info,
+      BUILD: colors.success,
       BRAINSTORM: chalk.blue,
     };
+
+    const taskPreview = task.length > 45 ? task.substring(0, 42) + '...' : task;
     console.log('');
     console.log(
-      chalk.bold('Suggested mode: ') +
-        modeColor[mode](mode) +
-        chalk.gray(` for: "${task.length > 50 ? task.substring(0, 47) + '...' : task}"`)
+      colors.muted('Suggested: ') +
+        modeColor[mode].bold(mode) +
+        colors.muted(` for "${taskPreview}"`)
     );
   }
 
   displayBrainstormResponse(response: string) {
     console.log('');
-    console.log(chalk.bold.blue('💡 Agent:'));
+    console.log(chalk.blue.bold('💡 Ideas & Analysis'));
+    console.log('');
+
     const lines = response.split('\n');
     for (const line of lines) {
-      console.log('  ' + chalk.white(line));
+      if (line.trim()) {
+        console.log(`  ${chalk.white(line)}`);
+      } else {
+        console.log('');
+      }
     }
     console.log('');
   }
 
   displayPermissionPrompt(message: string): string {
-    return chalk.bold.white(message) + chalk.gray(' [Y/n] ');
+    return colors.accent.bold(message) + colors.muted(' (y/n)  ');
+  }
+
+  private makeRoundedBox(
+    title: string,
+    width: number,
+    borderColor: (s: string) => string
+  ): string {
+    const lines: string[] = [];
+    const innerWidth = width - 4;
+    const titlePadded = ` ${title} `.padEnd(innerWidth).substring(0, innerWidth);
+
+    lines.push(borderColor('╭' + '─'.repeat(innerWidth) + '╮'));
+    lines.push(borderColor('│') + chalk.bold(titlePadded) + borderColor('│'));
+    lines.push(borderColor('╰' + '─'.repeat(innerWidth) + '╯'));
+
+    return lines.join('\n');
+  }
+
+  private makeDoubleBox(
+    title: string,
+    content: string,
+    width: number,
+    borderColor: (s: string) => string
+  ): string {
+    const lines: string[] = [];
+    const innerWidth = width - 4;
+    const titlePadded = ` ${title} `.padEnd(innerWidth).substring(0, innerWidth);
+
+    lines.push(borderColor('╔' + '═'.repeat(innerWidth) + '╗'));
+    lines.push(borderColor('║') + chalk.bold(titlePadded) + borderColor('║'));
+    lines.push(borderColor('╠' + '═'.repeat(innerWidth) + '╣'));
+
+    const contentLines = content.split('\n');
+    for (const line of contentLines) {
+      const padded = line.substring(0, innerWidth - 2).padEnd(innerWidth - 2);
+      lines.push(borderColor('║') + '  ' + padded + borderColor('║'));
+    }
+
+    lines.push(borderColor('╚' + '═'.repeat(innerWidth) + '╝'));
+
+    return lines.join('\n');
   }
 }
 

@@ -29,6 +29,7 @@ export async function runCommand(
     }
 
     // POST to backend
+    const apiKey = process.env.ANTHROPIC_API_KEY || '';
     const response = await fetch(`${backendUrl}/api/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -36,6 +37,7 @@ export async function runCommand(
         task,
         agent_role: options.agent,
         agent_goal: options.goal || '',
+        api_key: apiKey,
       }),
     });
 

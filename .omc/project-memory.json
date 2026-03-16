@@ -136,8 +136,8 @@
   "hotPaths": [
     {
       "path": "src/cli/interactive.ts",
-      "accessCount": 25,
-      "lastAccessed": 1773680611195,
+      "accessCount": 29,
+      "lastAccessed": 1773680749182,
       "type": "file"
     },
     {
@@ -165,15 +165,15 @@
       "type": "file"
     },
     {
-      "path": "src/bin.ts",
-      "accessCount": 7,
-      "lastAccessed": 1773676294284,
+      "path": "src/cli/run-command.ts",
+      "accessCount": 9,
+      "lastAccessed": 1773680733674,
       "type": "file"
     },
     {
-      "path": "src/cli/run-command.ts",
+      "path": "src/bin.ts",
       "accessCount": 7,
-      "lastAccessed": 1773676459678,
+      "lastAccessed": 1773676294284,
       "type": "file"
     },
     {

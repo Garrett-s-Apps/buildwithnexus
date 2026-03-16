@@ -200,11 +200,13 @@ async function planModeLoop(
 
   let steps: string[] = [];
 
+  const apiKey = process.env.ANTHROPIC_API_KEY || '';
+
   try {
     const response = await fetch(`${backendUrl}/api/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task, agent_role: 'engineer', agent_goal: '' }),
+      body: JSON.stringify({ task, agent_role: 'engineer', agent_goal: '', api_key: apiKey }),
     });
 
     if (!response.ok) {
@@ -333,11 +335,13 @@ async function buildModeLoop(
   console.log(chalk.bold('Task:'), chalk.white(task));
   tui.displayConnecting();
 
+  const apiKey = process.env.ANTHROPIC_API_KEY || '';
+
   try {
     const response = await fetch(`${backendUrl}/api/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task, agent_role: 'engineer', agent_goal: '' }),
+      body: JSON.stringify({ task, agent_role: 'engineer', agent_goal: '', api_key: apiKey }),
     });
 
     if (!response.ok) {
@@ -436,6 +440,7 @@ async function brainstormModeLoop(
     console.log(chalk.bold.blue('💡 Thinking...'));
 
     try {
+      const apiKey = process.env.ANTHROPIC_API_KEY || '';
       const response = await fetch(`${backendUrl}/api/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -443,6 +448,7 @@ async function brainstormModeLoop(
           task: currentQuestion,
           agent_role: 'brainstorm',
           agent_goal: 'Generate ideas, considerations, and suggestions. Be concise and helpful.',
+          api_key: apiKey,
         }),
       });
 

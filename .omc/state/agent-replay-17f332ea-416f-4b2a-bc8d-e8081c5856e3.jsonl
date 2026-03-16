@@ -19,3 +19,4 @@
 {"t":0,"agent":"system","event":"skill_invoked","skill_name":"oh-my-claudecode:cancel"}
 {"t":0,"agent":"a799b7b","agent_type":"researcher","event":"agent_start","parent_mode":"none"}
 {"t":0,"agent":"a799b7b","agent_type":"researcher","event":"agent_stop","success":true,"duration_ms":197407}
+{"t":0,"agent":"a3babf3","agent_type":"unknown","event":"agent_stop","success":true}

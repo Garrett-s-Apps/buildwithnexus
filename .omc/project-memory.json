@@ -136,32 +136,38 @@
   "hotPaths": [
     {
       "path": "src/cli/interactive.ts",
-      "accessCount": 54,
-      "lastAccessed": 1773688472651,
+      "accessCount": 71,
+      "lastAccessed": 1773695303802,
       "type": "file"
     },
     {
       "path": "",
-      "accessCount": 53,
-      "lastAccessed": 1773687495925,
+      "accessCount": 56,
+      "lastAccessed": 1773695286735,
       "type": "directory"
     },
     {
       "path": "src",
-      "accessCount": 27,
-      "lastAccessed": 1773687523966,
+      "accessCount": 32,
+      "lastAccessed": 1773695293546,
       "type": "directory"
     },
     {
-      "path": "package.json",
-      "accessCount": 23,
-      "lastAccessed": 1773688741470,
+      "path": "src/cli/init-command.ts",
+      "accessCount": 31,
+      "lastAccessed": 1773695216017,
       "type": "file"
     },
     {
-      "path": "src/cli/init-command.ts",
-      "accessCount": 23,
-      "lastAccessed": 1773690418212,
+      "path": "package.json",
+      "accessCount": 30,
+      "lastAccessed": 1773694939497,
+      "type": "file"
+    },
+    {
+      "path": "src/bin.ts",
+      "accessCount": 27,
+      "lastAccessed": 1773695100621,
       "type": "file"
     },
     {
@@ -171,27 +177,27 @@
       "type": "file"
     },
     {
-      "path": "src/bin.ts",
-      "accessCount": 18,
-      "lastAccessed": 1773688432862,
-      "type": "file"
-    },
-    {
       "path": "src/cli/tui.ts",
-      "accessCount": 14,
-      "lastAccessed": 1773686969624,
+      "accessCount": 18,
+      "lastAccessed": 1773695296232,
       "type": "file"
     },
     {
       "path": "src/deep-agents-bin.ts",
-      "accessCount": 12,
-      "lastAccessed": 1773687530742,
+      "accessCount": 13,
+      "lastAccessed": 1773695132241,
       "type": "file"
     },
     {
       "path": "src/core/config.ts",
       "accessCount": 9,
       "lastAccessed": 1773688432978,
+      "type": "file"
+    },
+    {
+      "path": "src/cli.ts",
+      "accessCount": 8,
+      "lastAccessed": 1773695121977,
       "type": "file"
     },
     {
@@ -210,12 +216,6 @@
       "path": "src/commands/keys.ts",
       "accessCount": 7,
       "lastAccessed": 1773687504855,
-      "type": "file"
-    },
-    {
-      "path": "src/cli.ts",
-      "accessCount": 7,
-      "lastAccessed": 1773687512081,
       "type": "file"
     },
     {
@@ -259,6 +259,12 @@
       "accessCount": 4,
       "lastAccessed": 1773687510465,
       "type": "file"
+    },
+    {
+      "path": "src/cli",
+      "accessCount": 4,
+      "lastAccessed": 1773695299575,
+      "type": "directory"
     },
     {
       "path": "src/deep-agents/dashboard/server.ts",
@@ -321,16 +327,22 @@
       "type": "file"
     },
     {
+      "path": "src/cli/dashboard-command.ts",
+      "accessCount": 2,
+      "lastAccessed": 1773694681310,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/start.ts",
+      "accessCount": 2,
+      "lastAccessed": 1773695132046,
+      "type": "file"
+    },
+    {
       "path": "src/deep-agents/ui/stream-formatter.ts",
       "accessCount": 1,
       "lastAccessed": 1773676399031,
       "type": "file"
-    },
-    {
-      "path": "src/cli",
-      "accessCount": 1,
-      "lastAccessed": 1773676460671,
-      "type": "directory"
     },
     {
       "path": "tests",
@@ -393,15 +405,21 @@
       "type": "file"
     },
     {
-      "path": "src/commands/start.ts",
-      "accessCount": 1,
-      "lastAccessed": 1773687516625,
-      "type": "file"
-    },
-    {
       "path": "test-init-manual.js",
       "accessCount": 1,
       "lastAccessed": 1773688599554,
+      "type": "file"
+    },
+    {
+      "path": "src/commands",
+      "accessCount": 1,
+      "lastAccessed": 1773695126933,
+      "type": "directory"
+    },
+    {
+      "path": "src/deep-agents/ui/planning-repl.ts",
+      "accessCount": 1,
+      "lastAccessed": 1773695135528,
       "type": "file"
     }
   ],

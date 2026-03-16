@@ -24,7 +24,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "postinstall": "[ -d .git ] && npm run build && NEXUS_SRC=${NEXUS_SRC:-../nexus} npm run bundle || true",
-    "prepublishOnly": "npm run build && ([ -d \"${NEXUS_SRC:-../nexus}\" ] && NEXUS_SRC=${NEXUS_SRC:-../nexus} npm run bundle || echo 'Note: NEXUS_SRC not available, using pre-built tarball if present') && ([ -f dist/nexus-release.tar.gz ] || (echo 'ERROR: nexus-release.tar.gz not found. Cannot publish without tarball required by buildwithnexus init' && exit 1))"
+    "prepublishOnly": "([ -f dist/nexus-release.tar.gz ] && cp dist/nexus-release.tar.gz /tmp/nexus-release.tar.gz || true) && npm run build && ([ -d \"${NEXUS_SRC:-../nexus}\" ] && NEXUS_SRC=${NEXUS_SRC:-../nexus} npm run bundle || ([ -f /tmp/nexus-release.tar.gz ] && cp /tmp/nexus-release.tar.gz dist/nexus-release.tar.gz)) && ([ -f dist/nexus-release.tar.gz ] || (echo 'ERROR: nexus-release.tar.gz not found. Cannot publish without tarball required by buildwithnexus init' && exit 1))"
   },
   "engines": {
     "node": ">=18"

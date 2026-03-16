@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { Ora } from "ora";
-import { showBanner, showPhase, showCompletion } from "../ui/banner.js";
+import { showPhase, showCompletion } from "../ui/banner.js";
 import { createSpinner, succeed, fail } from "../ui/spinner.js";
 import { log } from "../ui/logger.js";
 import { promptInitConfig } from "../ui/prompts.js";
@@ -100,7 +100,6 @@ const phases: Phase[] = [
   {
     name: "Configuration",
     run: async (ctx) => {
-      showBanner();
       const platform = detectPlatform();
       log.detail("Platform", `${platform.os} ${platform.arch}`);
 

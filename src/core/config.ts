@@ -12,13 +12,32 @@ export interface ApiKeys {
 /**
  * Reads API keys from environment variables.
  * Returns an object with undefined for any keys that are not set.
+ * Logs a warning for keys that are set but empty or whitespace-only.
  */
 export function loadApiKeys(): ApiKeys {
-  return {
-    anthropic: process.env.ANTHROPIC_API_KEY || undefined,
-    openai: process.env.OPENAI_API_KEY || undefined,
-    google: process.env.GOOGLE_API_KEY || undefined,
-  };
+  const keyNames: Array<[string, keyof ApiKeys]> = [
+    ['ANTHROPIC_API_KEY', 'anthropic'],
+    ['OPENAI_API_KEY', 'openai'],
+    ['GOOGLE_API_KEY', 'google'],
+  ];
+
+  const result: ApiKeys = {};
+
+  for (const [envName, key] of keyNames) {
+    const raw = process.env[envName];
+    if (raw !== undefined) {
+      if (raw.trim() === '') {
+        console.warn(`WARNING: ${envName} is set but empty - it will be treated as unconfigured`);
+        result[key] = undefined;
+      } else {
+        result[key] = raw;
+      }
+    } else {
+      result[key] = undefined;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -44,6 +63,39 @@ export function hasAnyKey(): boolean {
     process.env.OPENAI_API_KEY ||
     process.env.GOOGLE_API_KEY
   );
+}
+
+/**
+ * Validates that a backend URL is safe for transmitting API keys.
+ * - localhost / 127.0.0.1 are allowed over HTTP (development).
+ * - All other hosts require HTTPS.
+ */
+export function validateBackendUrl(url: string): { valid: boolean; error?: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { valid: false, error: `Invalid backend URL: ${url}` };
+  }
+
+  const hostname = parsed.hostname;
+  const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
+
+  if (parsed.protocol === "https:") {
+    return { valid: true };
+  }
+
+  if (isLocal) {
+    return { valid: true };
+  }
+
+  return {
+    valid: false,
+    error:
+      "WARNING: Backend URL is not localhost and not HTTPS. " +
+      "API keys will be transmitted in plaintext. " +
+      "Use SSH tunnel or HTTPS endpoint.",
+  };
 }
 
 /**

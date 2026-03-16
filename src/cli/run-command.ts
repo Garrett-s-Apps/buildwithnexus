@@ -1,12 +1,19 @@
 // src/cli/run-command.ts
 import { tui } from './tui.js';
-import { loadApiKeys } from '../core/config.js';
+import { loadApiKeys, validateBackendUrl } from '../core/config.js';
 
 export async function runCommand(
   task: string,
   options: { agent: string; goal?: string; model: string }
 ) {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
+
+  // Validate backend URL security before transmitting API keys
+  const urlCheck = validateBackendUrl(backendUrl);
+  if (!urlCheck.valid) {
+    console.error(`\n${urlCheck.error}`);
+    process.exit(1);
+  }
 
   tui.displayHeader(task, options.agent);
   tui.displayConnecting();
@@ -60,46 +67,24 @@ export async function runCommand(
     try {
       const response = await fetch(eventSourceUrl);
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
 
       if (!reader) {
         throw new Error('No response body');
       }
 
-      let buffer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      for await (const parsed of parseSSEStream(reader)) {
+        const type = parsed.type;
+        const eventContent = (parsed.data['content'] as string) || '';
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6)) as {
-                type: string;
-                data: Record<string, unknown>;
-              };
-
-              const type = data.type;
-              const content = (data.data['content'] as string) || '';
-
-              if (type === 'done') {
-                tui.displayEvent(type, { content: 'Task completed successfully' });
-                tui.displayComplete(tui.getElapsedTime());
-                process.exit(0);
-              } else if (type === 'error') {
-                tui.displayError(content);
-                process.exit(1);
-              } else {
-                tui.displayEvent(type, { content });
-              }
-            } catch {
-              // Ignore parse errors
-            }
-          }
+        if (type === 'done') {
+          tui.displayEvent(type, { content: 'Task completed successfully' });
+          tui.displayComplete(tui.getElapsedTime());
+          process.exit(0);
+        } else if (type === 'error') {
+          tui.displayError(eventContent);
+          process.exit(1);
+        } else {
+          tui.displayEvent(type, { content: eventContent });
         }
       }
     } catch (error: unknown) {

@@ -2,23 +2,51 @@ import * as readline from 'readline';
 import chalk from 'chalk';
 import { tui, type Mode } from './tui.js';
 import { classifyIntent } from './intent-classifier.js';
-import { hasAnyKey, reloadEnv, loadApiKeys } from '../core/config.js';
+import { hasAnyKey, loadApiKeys, validateBackendUrl } from '../core/config.js';
+import { loadKeys } from '../core/secrets.js';
+import { parseSSEStream } from '../core/sse-parser.js';
+import { startBackend } from '../core/docker.js';
+import pkg from '../../package.json' assert { type: 'json' };
+
+const appVersion = typeof __BUILDWITHNEXUS_VERSION__ !== 'undefined'
+  ? __BUILDWITHNEXUS_VERSION__
+  : pkg.version;
 
 export async function interactiveMode() {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
 
-  // Always ask for API keys on startup
-  console.log(chalk.cyan('\n🔧 Configure API Keys\n'));
-  const { deepAgentsInitCommand } = await import('./init-command.js');
-  await deepAgentsInitCommand();
-
-  // Reload environment from ~/.env.local
-  reloadEnv();
-
-  // Verify keys are loaded
-  if (!hasAnyKey()) {
-    console.error('Error: At least one API key is required to use buildwithnexus.');
+  // Validate backend URL security before transmitting API keys
+  const urlCheck = validateBackendUrl(backendUrl);
+  if (!urlCheck.valid) {
+    console.error(chalk.red(`\n${urlCheck.error}`));
     process.exit(1);
+  }
+
+  // Load keys from ~/.buildwithnexus/.env.keys into process.env if not already set
+  if (!hasAnyKey()) {
+    try {
+      const storedKeys = loadKeys();
+      if (storedKeys) {
+        if (storedKeys.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = storedKeys.ANTHROPIC_API_KEY;
+        if (storedKeys.OPENAI_API_KEY) process.env.OPENAI_API_KEY = storedKeys.OPENAI_API_KEY;
+        if (storedKeys.GOOGLE_API_KEY) process.env.GOOGLE_API_KEY = storedKeys.GOOGLE_API_KEY;
+      }
+    } catch {
+      // tampered keys — will fall through to re-prompt below
+    }
+  }
+
+  // Only prompt for API keys if none are configured yet
+  if (!hasAnyKey()) {
+    console.log(chalk.cyan('\n🔧 Configure API Keys\n'));
+    const { deepAgentsInitCommand } = await import('./init-command.js');
+    await deepAgentsInitCommand();
+
+    // Verify keys are loaded after init
+    if (!hasAnyKey()) {
+      console.error('Error: At least one API key is required to use buildwithnexus.');
+      process.exit(1);
+    }
   }
 
   // Show configured keys
@@ -26,17 +54,42 @@ export async function interactiveMode() {
   console.log(chalk.green('\n✓ Keys configured!'));
   console.log(chalk.gray(`  Anthropic: ${keys.anthropic ? '✓' : '✗'}`));
   console.log(chalk.gray(`  OpenAI: ${keys.openai ? '✓' : '✗'}`));
-  console.log(chalk.gray(`  Google: ${keys.google ? '✓' : '✗'}\n`));
+  console.log(chalk.gray(`  Google: ${keys.google ? '✓' : '✗'}`));
+  console.log(chalk.gray(`  (Run 'da-init' to reconfigure)\n`));
+
+  // Check backend health; auto-start if not running
+  async function waitForBackend(): Promise<boolean> {
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      try {
+        const retryResponse = await fetch(`${backendUrl}/health`, { signal: AbortSignal.timeout(10000) });
+        if (retryResponse.ok) return true;
+      } catch {
+        // not ready yet
+      }
+    }
+    return false;
+  }
 
   try {
-    const response = await fetch(`${backendUrl}/health`);
+    const response = await fetch(`${backendUrl}/health`, { signal: AbortSignal.timeout(10000) });
     if (!response.ok) {
-      console.error(chalk.red('❌ Backend not running. Start it with: buildwithnexus server'));
-      process.exit(1);
+      console.log(chalk.yellow('⚠️  Backend not responding, starting...'));
+      await startBackend();
+      const ready = await waitForBackend();
+      if (!ready) {
+        console.error(chalk.red('❌ Backend failed to start. Run: buildwithnexus server'));
+        process.exit(1);
+      }
     }
   } catch {
-    console.error(chalk.red('❌ Cannot connect to backend at ' + backendUrl));
-    process.exit(1);
+    console.log(chalk.yellow('⚠️  Backend not accessible, attempting to start...'));
+    await startBackend();
+    const ready = await waitForBackend();
+    if (!ready) {
+      console.error(chalk.red('❌ Backend failed to start. Run: buildwithnexus server'));
+      process.exit(1);
+    }
   }
 
   const rl = readline.createInterface({
@@ -73,7 +126,7 @@ export async function interactiveMode() {
     const currentMode = await selectMode(suggestedMode, ask);
 
     // Enter the mode loop
-    await runModeLoop(currentMode, task, backendUrl, rl, ask);
+    await runModeLoop(currentMode, task, backendUrl, ask);
     console.log('');
   }
 }
@@ -91,21 +144,23 @@ async function selectMode(suggested: Mode, ask: (q: string) => Promise<string>):
       chalk.bold('Enter') +
       chalk.gray(' to use ') +
       modeColor[suggested](suggested) +
-      chalk.gray(' or type ') +
-      chalk.bold('plan') +
-      chalk.gray('/') +
-      chalk.bold('build') +
-      chalk.gray('/') +
-      chalk.bold('brainstorm') +
-      chalk.gray(' to switch: ')
+      chalk.gray(' or choose a mode:')
+  );
+  console.log(
+    chalk.gray('  ') +
+      chalk.cyan.bold('[1] PLAN') + chalk.gray(' (p)   design & break down steps') +
+      chalk.gray('\n  ') +
+      chalk.green.bold('[2] BUILD') + chalk.gray(' (b)  execute with live streaming') +
+      chalk.gray('\n  ') +
+      chalk.blue.bold('[3] BRAINSTORM') + chalk.gray(' (bs)  free-form explore & Q&A')
   );
 
   const answer = await ask(chalk.gray('> '));
   const lower = answer.trim().toLowerCase();
 
-  if (lower === 'p' || lower === 'plan') return 'PLAN';
-  if (lower === 'b' || lower === 'build') return 'BUILD';
-  if (lower === 'br' || lower === 'brainstorm') return 'BRAINSTORM';
+  if (lower === '1' || lower === 'p' || lower === 'plan') return 'PLAN';
+  if (lower === '2' || lower === 'b' || lower === 'build') return 'BUILD';
+  if (lower === '3' || lower === 'bs' || lower === 'br' || lower === 'brainstorm') return 'BRAINSTORM';
 
   return suggested;
 }
@@ -114,7 +169,6 @@ async function runModeLoop(
   mode: Mode,
   task: string,
   backendUrl: string,
-  rl: readline.Interface,
   ask: (q: string) => Promise<string>
 ): Promise<void> {
   let currentMode = mode;
@@ -126,7 +180,7 @@ async function runModeLoop(
     tui.displayModeHeader(currentMode);
 
     if (currentMode === 'PLAN') {
-      const next = await planModeLoop(task, backendUrl, rl, ask);
+      const next = await planModeLoop(task, backendUrl, ask);
       if (next === 'BUILD') {
         currentMode = 'BUILD';
         continue;
@@ -140,7 +194,7 @@ async function runModeLoop(
     }
 
     if (currentMode === 'BUILD') {
-      const next = await buildModeLoop(task, backendUrl, rl, ask);
+      const next = await buildModeLoop(task, backendUrl, ask);
       if (next === 'switch') {
         currentMode = await promptModeSwitch(currentMode, ask);
         continue;
@@ -149,7 +203,7 @@ async function runModeLoop(
     }
 
     if (currentMode === 'BRAINSTORM') {
-      const next = await brainstormModeLoop(task, backendUrl, rl, ask);
+      const next = await brainstormModeLoop(task, backendUrl, ask);
       if (next === 'switch') {
         currentMode = await promptModeSwitch(currentMode, ask);
         continue;
@@ -163,7 +217,13 @@ function printAppHeader() {
   console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
   console.log(
     chalk.cyan('║') +
-      chalk.bold.white('        🚀 Nexus - Autonomous Agent Orchestration             ') +
+      chalk.bold.white('        Nexus - Autonomous Agent Orchestration                ') +
+      chalk.cyan('║')
+  );
+  const versionLine = `        v${appVersion}`;
+  console.log(
+    chalk.cyan('║') +
+      chalk.dim(versionLine.padEnd(60)) +
       chalk.cyan('║')
   );
   console.log(chalk.cyan('╚════════════════════════════════════════════════════════════╝'));
@@ -193,7 +253,6 @@ async function promptModeSwitch(current: Mode, ask: (q: string) => Promise<strin
 async function planModeLoop(
   task: string,
   backendUrl: string,
-  rl: readline.Interface,
   ask: (q: string) => Promise<string>
 ): Promise<'BUILD' | 'switch' | 'cancel' | 'done'> {
   console.log(chalk.bold('Task:'), chalk.white(task));
@@ -209,6 +268,7 @@ async function planModeLoop(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ task, agent_role: 'engineer', agent_goal: '', api_key: keys.anthropic || '', openai_api_key: keys.openai || '', google_api_key: keys.google || '' }),
+      signal: AbortSignal.timeout(120000),
     });
 
     if (!response.ok) {
@@ -219,46 +279,26 @@ async function planModeLoop(
     const { run_id } = (await response.json()) as { run_id: string };
     tui.displayConnected(run_id);
 
-    const streamResponse = await fetch(`${backendUrl}/api/stream/${run_id}`);
+    const streamResponse = await fetch(`${backendUrl}/api/stream/${run_id}`, { signal: AbortSignal.timeout(120000) });
     const reader = streamResponse.body?.getReader();
-    const decoder = new TextDecoder();
 
     if (!reader) throw new Error('No response body');
 
-    let buffer = '';
     let planReceived = false;
 
-    outer: while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const parsed = JSON.parse(line.slice(6)) as {
-            type: string;
-            data: Record<string, unknown>;
-          };
-          if (parsed.type === 'plan') {
-            steps = (parsed.data['steps'] as string[]) || [];
-            planReceived = true;
-            break outer;
-          } else if (parsed.type === 'error') {
-            const errorMsg = (parsed.data['error'] as string) || (parsed.data['content'] as string) || 'Unknown error';
-            tui.displayError(errorMsg);
-            return 'cancel';
-          }
-        } catch {
-          // ignore parse errors
-        }
+    for await (const parsed of parseSSEStream(reader)) {
+      if (parsed.type === 'plan') {
+        steps = (parsed.data['steps'] as string[]) || [];
+        planReceived = true;
+        reader.cancel();
+        break;
+      } else if (parsed.type === 'error') {
+        const errorMsg = (parsed.data['error'] as string) || (parsed.data['content'] as string) || 'Unknown error';
+        tui.displayError(errorMsg);
+        reader.cancel();
+        return 'cancel';
       }
     }
-
-    reader.cancel();
 
     if (!planReceived || steps.length === 0) {
       console.log(chalk.yellow('No plan received from backend.'));
@@ -331,7 +371,6 @@ async function editPlanSteps(steps: string[], ask: (q: string) => Promise<string
 async function buildModeLoop(
   task: string,
   backendUrl: string,
-  rl: readline.Interface,
   ask: (q: string) => Promise<string>
 ): Promise<'switch' | 'done'> {
   console.log(chalk.bold('Task:'), chalk.white(task));
@@ -344,6 +383,7 @@ async function buildModeLoop(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ task, agent_role: 'engineer', agent_goal: '', api_key: keys.anthropic || '', openai_api_key: keys.openai || '', google_api_key: keys.google || '' }),
+      signal: AbortSignal.timeout(120000),
     });
 
     if (!response.ok) {
@@ -357,52 +397,30 @@ async function buildModeLoop(
     console.log(chalk.bold.green('⚙️  Executing...'));
     tui.displayStreamStart();
 
-    const streamResponse = await fetch(`${backendUrl}/api/stream/${run_id}`);
+    const streamResponse = await fetch(`${backendUrl}/api/stream/${run_id}`, { signal: AbortSignal.timeout(120000) });
     const reader = streamResponse.body?.getReader();
-    const decoder = new TextDecoder();
 
     if (!reader) throw new Error('No response body');
 
-    let buffer = '';
+    for await (const parsed of parseSSEStream(reader)) {
+      const type = parsed.type;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const parsed = JSON.parse(line.slice(6)) as {
-            type: string;
-            data: Record<string, unknown>;
-          };
-
-          const type = parsed.type;
-
-          if (type === 'execution_complete') {
-            const summary = (parsed.data['summary'] as string) || '';
-            const count = (parsed.data['todos_completed'] as number) || 0;
-            tui.displayResults(summary, count);
-            tui.displayComplete(tui.getElapsedTime());
-            break;
-          } else if (type === 'done') {
-            tui.displayEvent(type, { content: 'Task completed successfully' });
-            tui.displayComplete(tui.getElapsedTime());
-            break;
-          } else if (type === 'error') {
-            const errorMsg = (parsed.data['error'] as string) || (parsed.data['content'] as string) || 'Unknown error';
-            tui.displayError(errorMsg);
-            break;
-          } else if (type !== 'plan') {
-            tui.displayEvent(type, parsed.data);
-          }
-        } catch {
-          // ignore parse errors
-        }
+      if (type === 'execution_complete') {
+        const summary = (parsed.data['summary'] as string) || '';
+        const count = (parsed.data['todos_completed'] as number) || 0;
+        tui.displayResults(summary, count);
+        tui.displayComplete(tui.getElapsedTime());
+        break;
+      } else if (type === 'done') {
+        tui.displayEvent(type, { content: 'Task completed successfully' });
+        tui.displayComplete(tui.getElapsedTime());
+        break;
+      } else if (type === 'error') {
+        const errorMsg = (parsed.data['error'] as string) || (parsed.data['content'] as string) || 'Unknown error';
+        tui.displayError(errorMsg);
+        break;
+      } else if (type !== 'plan') {
+        tui.displayEvent(type, parsed.data);
       }
     }
   } catch (err: unknown) {
@@ -430,7 +448,6 @@ async function buildModeLoop(
 async function brainstormModeLoop(
   task: string,
   backendUrl: string,
-  rl: readline.Interface,
   ask: (q: string) => Promise<string>
 ): Promise<'switch' | 'done'> {
   console.log(chalk.bold('Starting topic:'), chalk.white(task));
@@ -454,67 +471,47 @@ async function brainstormModeLoop(
           openai_api_key: keys.openai || '',
           google_api_key: keys.google || '',
         }),
+        signal: AbortSignal.timeout(120000),
       });
 
       if (response.ok) {
         const { run_id } = (await response.json()) as { run_id: string };
-        const streamResponse = await fetch(`${backendUrl}/api/stream/${run_id}`);
+        const streamResponse = await fetch(`${backendUrl}/api/stream/${run_id}`, { signal: AbortSignal.timeout(120000) });
         const reader = streamResponse.body?.getReader();
-        const decoder = new TextDecoder();
 
         if (reader) {
-          let buffer = '';
           let responseText = '';
 
-          outer: while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+          for await (const parsed of parseSSEStream(reader)) {
+            const type = parsed.type;
+            const data = parsed.data;
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              if (!line.startsWith('data: ')) continue;
-              try {
-                const parsed = JSON.parse(line.slice(6)) as {
-                  type: string;
-                  data: Record<string, unknown>;
-                };
-                const type = parsed.type;
-                const data = parsed.data;
-
-                if (type === 'done' || type === 'execution_complete') {
-                  const summary = (data['summary'] as string) || '';
-                  if (summary) responseText = summary;
-                  break outer;
-                } else if (type === 'error') {
-                  const errorMsg = (data['error'] as string) || (data['content'] as string) || 'Unknown error';
-                  responseText += errorMsg + '\n';
-                  break outer;
-                } else if (type === 'thought' || type === 'observation') {
-                  const content = (data['content'] as string) || '';
-                  if (content) responseText += content + '\n';
-                } else if (type === 'agent_response' || type === 'agent_result') {
-                  // Handle agent response events
-                  const content = (data['content'] as string) || (data['result'] as string) || '';
-                  if (content) responseText += content + '\n';
-                } else if (type === 'action') {
-                  const content = (data['content'] as string) || '';
-                  if (content) responseText += content + '\n';
-                } else if (type === 'agent_working') {
-                  // Skip intermediate agent_working events in brainstorm mode
-                } else if (type !== 'plan') {
-                  // Catch-all for any other event types
-                  const content = (data['content'] as string) || (data['response'] as string) || '';
-                  if (content) responseText += content + '\n';
-                }
-              } catch {
-                // ignore parse errors
-              }
+            if (type === 'done' || type === 'execution_complete') {
+              const summary = (data['summary'] as string) || '';
+              if (summary) responseText = summary;
+              break;
+            } else if (type === 'error') {
+              const errorMsg = (data['error'] as string) || (data['content'] as string) || 'Unknown error';
+              responseText += errorMsg + '\n';
+              break;
+            } else if (type === 'thought' || type === 'observation') {
+              const content = (data['content'] as string) || '';
+              if (content) responseText += content + '\n';
+            } else if (type === 'agent_response' || type === 'agent_result') {
+              // Handle agent response events
+              const content = (data['content'] as string) || (data['result'] as string) || '';
+              if (content) responseText += content + '\n';
+            } else if (type === 'action') {
+              const content = (data['content'] as string) || '';
+              if (content) responseText += content + '\n';
+            } else if (type === 'agent_working') {
+              // Skip intermediate agent_working events in brainstorm mode
+            } else if (type !== 'plan') {
+              // Catch-all for any other event types
+              const content = (data['content'] as string) || (data['response'] as string) || '';
+              if (content) responseText += content + '\n';
             }
           }
-          reader.cancel();
 
           if (responseText.trim()) {
             tui.displayBrainstormResponse(responseText.trim());

@@ -1,4 +1,5 @@
 import type { AgentDefinition } from "./agent-loader.js";
+import { MODELS } from "../../core/models.js";
 
 /**
  * Default agent template library.
@@ -12,7 +13,7 @@ export const agentTemplates: AgentDefinition[] = [
     backstory:
       "You are an experienced CEO who thinks at the strategic level. You break large goals into epics, assign them to the right agents, and monitor progress.",
     tools: ["write_todos", "spawn_subagent", "search", "read_file"],
-    model: "claude-opus-4-5",
+    model: MODELS.OPUS,
     temperature: 0.7,
   },
   {
@@ -22,7 +23,7 @@ export const agentTemplates: AgentDefinition[] = [
     backstory:
       "You are a senior engineer with 10+ years of experience. You read existing code carefully, follow conventions, and write minimal diffs that solve the problem.",
     tools: ["read_file", "write_file", "bash", "search"],
-    model: "claude-sonnet-4-5",
+    model: MODELS.SONNET,
     temperature: 0.2,
   },
   {
@@ -32,7 +33,7 @@ export const agentTemplates: AgentDefinition[] = [
     backstory:
       "You are a rigorous researcher who cross-references sources, identifies gaps, and produces structured summaries.",
     tools: ["search", "read_file", "write_file"],
-    model: "claude-sonnet-4-5",
+    model: MODELS.SONNET,
     temperature: 0.5,
   },
   {
@@ -42,7 +43,7 @@ export const agentTemplates: AgentDefinition[] = [
     backstory:
       "You are a thorough code reviewer who checks correctness, security, performance, and adherence to project conventions.",
     tools: ["read_file", "search"],
-    model: "claude-sonnet-4-5",
+    model: MODELS.SONNET,
     temperature: 0.1,
   },
   {
@@ -52,7 +53,7 @@ export const agentTemplates: AgentDefinition[] = [
     backstory:
       "You are an expert at breaking down ambiguous requirements into concrete, actionable steps with clear acceptance criteria.",
     tools: ["write_todos", "read_file", "search"],
-    model: "claude-opus-4-5",
+    model: MODELS.OPUS,
     temperature: 0.4,
   },
   {
@@ -62,7 +63,7 @@ export const agentTemplates: AgentDefinition[] = [
     backstory:
       "You are a QA engineer who writes unit tests, integration tests, and end-to-end scenarios. You think adversarially about edge cases.",
     tools: ["read_file", "write_file", "bash"],
-    model: "claude-sonnet-4-5",
+    model: MODELS.SONNET,
     temperature: 0.2,
   },
   {
@@ -72,7 +73,7 @@ export const agentTemplates: AgentDefinition[] = [
     backstory:
       "You are a DevOps engineer experienced with containers, cloud platforms, and IaC. You write reliable automation scripts.",
     tools: ["bash", "read_file", "write_file", "search"],
-    model: "claude-sonnet-4-5",
+    model: MODELS.SONNET,
     temperature: 0.3,
   },
   {
@@ -82,7 +83,7 @@ export const agentTemplates: AgentDefinition[] = [
     backstory:
       "You are a product designer who thinks in user journeys, information hierarchy, and accessibility. You produce specs and mockup descriptions.",
     tools: ["search", "read_file", "write_file"],
-    model: "claude-sonnet-4-5",
+    model: MODELS.SONNET,
     temperature: 0.6,
   },
 ];

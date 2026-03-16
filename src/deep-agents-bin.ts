@@ -4,6 +4,7 @@ import { program } from 'commander';
 import { PlanningREPL } from './deep-agents/ui/planning-repl.js';
 import { StreamFormatter } from './deep-agents/ui/stream-formatter.js';
 import { loadApiKeys } from './core/config.js';
+import { MODELS } from './core/models.js';
 import dotenv from 'dotenv';
 import path from 'path';
 import os from 'os';
@@ -114,7 +115,7 @@ program
   .description('Run a task with Deep Agents')
   .option('-a, --agent <name>', 'Agent role (engineer, researcher, etc)', 'engineer')
   .option('-g, --goal <goal>', 'Agent goal')
-  .option('-m, --model <model>', 'LLM model', 'claude-sonnet-4-20250514')
+  .option('-m, --model <model>', 'LLM model', MODELS.DEFAULT)
   .action(runCommand);
 
 program.parse();

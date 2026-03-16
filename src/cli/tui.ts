@@ -1,4 +1,5 @@
-import chalk from 'chalk';
+import chalk, { ChalkInstance } from 'chalk';
+import stringWidth from 'string-width';
 
 export type Mode = 'PLAN' | 'BUILD' | 'BRAINSTORM';
 
@@ -171,7 +172,7 @@ export class TUI {
 
   displayModeBar(current: Mode) {
     const modes: Mode[] = ['PLAN', 'BUILD', 'BRAINSTORM'];
-    const modeConfig: Record<Mode, { icon: string; color: (s: string) => string }> = {
+    const modeConfig: Record<Mode, { icon: string; color: ChalkInstance }> = {
       PLAN: { icon: '📋', color: colors.info },
       BUILD: { icon: '⚙️', color: colors.success },
       BRAINSTORM: { icon: '💡', color: chalk.blue },
@@ -192,7 +193,7 @@ export class TUI {
   }
 
   displayModeHeader(mode: Mode) {
-    const config: Record<Mode, { icon: string; desc: string; color: (s: string) => string }> = {
+    const config: Record<Mode, { icon: string; desc: string; color: ChalkInstance }> = {
       PLAN: {
         icon: '📋',
         desc: 'Break down and review steps',
@@ -218,7 +219,7 @@ export class TUI {
   }
 
   displaySuggestedMode(mode: Mode, task: string) {
-    const modeColor: Record<Mode, (s: string) => string> = {
+    const modeColor: Record<Mode, ChalkInstance> = {
       PLAN: colors.info,
       BUILD: colors.success,
       BRAINSTORM: chalk.blue,
@@ -253,6 +254,24 @@ export class TUI {
     return colors.accent.bold(message) + colors.muted(' (y/n)  ');
   }
 
+  private padToWidth(text: string, targetWidth: number): string {
+    const visibleWidth = stringWidth(text);
+    const padding = Math.max(0, targetWidth - visibleWidth);
+    return text + ' '.repeat(padding);
+  }
+
+  private truncateToWidth(text: string, maxWidth: number): string {
+    let result = '';
+    let width = 0;
+    for (const char of text) {
+      const charWidth = stringWidth(char);
+      if (width + charWidth > maxWidth) break;
+      result += char;
+      width += charWidth;
+    }
+    return result;
+  }
+
   private makeRoundedBox(
     title: string,
     width: number,
@@ -260,7 +279,9 @@ export class TUI {
   ): string {
     const lines: string[] = [];
     const innerWidth = width - 4;
-    const titlePadded = ` ${title} `.padEnd(innerWidth).substring(0, innerWidth);
+    const titleText = ` ${title} `;
+    const titleTruncated = this.truncateToWidth(titleText, innerWidth);
+    const titlePadded = this.padToWidth(titleTruncated, innerWidth);
 
     lines.push(borderColor('╭' + '─'.repeat(innerWidth) + '╮'));
     lines.push(borderColor('│') + chalk.bold(titlePadded) + borderColor('│'));
@@ -277,7 +298,9 @@ export class TUI {
   ): string {
     const lines: string[] = [];
     const innerWidth = width - 4;
-    const titlePadded = ` ${title} `.padEnd(innerWidth).substring(0, innerWidth);
+    const titleText = ` ${title} `;
+    const titleTruncated = this.truncateToWidth(titleText, innerWidth);
+    const titlePadded = this.padToWidth(titleTruncated, innerWidth);
 
     lines.push(borderColor('╔' + '═'.repeat(innerWidth) + '╗'));
     lines.push(borderColor('║') + chalk.bold(titlePadded) + borderColor('║'));
@@ -285,7 +308,9 @@ export class TUI {
 
     const contentLines = content.split('\n');
     for (const line of contentLines) {
-      const padded = line.substring(0, innerWidth - 2).padEnd(innerWidth - 2);
+      const contentWidth = innerWidth - 2;
+      const truncated = this.truncateToWidth(line, contentWidth);
+      const padded = this.padToWidth(truncated, contentWidth);
       lines.push(borderColor('║') + '  ' + padded + borderColor('║'));
     }
 

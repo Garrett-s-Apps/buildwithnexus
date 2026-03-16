@@ -1,32 +1,4 @@
 import chalk from "chalk";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const BANNER = `
-  ╔══════════════════════════════════════════════╗
-  ║       ${chalk.bold.cyan("B U I L D   W I T H   N E X U S")}        ║
-  ║                                              ║
-  ║      Autonomous Agent Orchestration          ║
-  ╚══════════════════════════════════════════════╝
-`;
-
-function getVersion(): string {
-  try {
-    const __dirname = dirname(fileURLToPath(import.meta.url));
-    // When bundled: __dirname is dist/, package.json is at ../package.json
-    const packagePath = join(__dirname, "..", "package.json");
-    const packageJson = JSON.parse(readFileSync(packagePath, "utf-8"));
-    return packageJson.version;
-  } catch {
-    return typeof __BUILDWITHNEXUS_VERSION__ !== "undefined" ? __BUILDWITHNEXUS_VERSION__ : "0.0.0-unknown";
-  }
-}
-
-export function showBanner(): void {
-  console.log(BANNER);
-  console.log(chalk.dim(`  v${getVersion()} · buildwithnexus.dev\n`));
-}
 
 export function showPhase(phase: number, total: number, description: string): void {
   const progress = chalk.cyan(`[${phase}/${total}]`);

@@ -497,6 +497,29 @@ export async function dockerExec(command: string): Promise<{ stdout: string; std
   }
 }
 
+/**
+ * Start the Nexus Python backend server as a detached background process.
+ * The backend is expected to listen on port 4200 (or BACKEND_URL).
+ */
+export async function startBackend(): Promise<void> {
+  const { spawn } = await import("node:child_process");
+  const os = await import("node:os");
+  const path = await import("node:path");
+
+  const nexusDir = path.join(os.homedir(), "Projects", "nexus");
+  log.step(`Starting Nexus backend from ${nexusDir}...`);
+
+  const child = spawn("python", ["-m", "src.deep_agents_server"], {
+    cwd: nexusDir,
+    detached: true,
+    stdio: "ignore",
+    env: { ...process.env },
+  });
+
+  child.unref();
+  log.success("Nexus backend process started");
+}
+
 export async function isNexusRunning(): Promise<boolean> {
   try {
     const { stdout } = await execa("docker", [

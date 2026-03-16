@@ -154,8 +154,14 @@
     },
     {
       "path": "package.json",
-      "accessCount": 22,
-      "lastAccessed": 1773688697133,
+      "accessCount": 23,
+      "lastAccessed": 1773688741470,
+      "type": "file"
+    },
+    {
+      "path": "src/cli/init-command.ts",
+      "accessCount": 23,
+      "lastAccessed": 1773690418212,
       "type": "file"
     },
     {
@@ -168,12 +174,6 @@
       "path": "src/bin.ts",
       "accessCount": 18,
       "lastAccessed": 1773688432862,
-      "type": "file"
-    },
-    {
-      "path": "src/cli/init-command.ts",
-      "accessCount": 16,
-      "lastAccessed": 1773688446090,
       "type": "file"
     },
     {

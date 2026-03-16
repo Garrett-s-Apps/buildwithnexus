@@ -2,8 +2,23 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { input, confirm, password } from '@inquirer/prompts';
+import * as readline from 'readline';
 import { reloadEnv } from '../core/config.js';
+
+// Create single readline interface for all prompts
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+// Helper to read from stdin (works with piped input)
+function readFromStdin(prompt: string): Promise<string> {
+  return new Promise((resolve) => {
+    rl.question(prompt, (answer) => {
+      resolve(answer);
+    });
+  });
+}
 
 export async function deepAgentsInitCommand() {
   console.log(`
@@ -17,11 +32,8 @@ export async function deepAgentsInitCommand() {
   const hasEnv = fs.existsSync(envPath);
 
   if (hasEnv) {
-    const shouldReset = await confirm({
-      message: '.env.local already exists. Reconfigure?',
-      default: false,
-    });
-    if (!shouldReset) {
+    const answer = await readFromStdin('.env.local already exists. Reconfigure? (y/n) [n]: ');
+    if (answer.toLowerCase() !== 'y' && answer.toLowerCase() !== 'yes') {
       console.log('Setup complete -- using existing configuration.');
       return;
     }
@@ -32,33 +44,27 @@ export async function deepAgentsInitCommand() {
     '(You can set these later by editing .env.local)\n'
   );
 
-  // Collect API keys (using password input for security - shows asterisks)
-  const anthropicKey = await password({
-    message: 'ANTHROPIC_API_KEY (Claude - optional, press Enter to skip)',
-  });
+  // Collect API keys using readline (works with piped stdin)
+  const anthropicKey = await readFromStdin(
+    'ANTHROPIC_API_KEY (Claude - optional, press Enter to skip): '
+  );
 
-  const openaiKey = await password({
-    message: 'OPENAI_API_KEY (GPT - optional, press Enter to skip)',
-  });
+  const openaiKey = await readFromStdin(
+    'OPENAI_API_KEY (GPT - optional, press Enter to skip): '
+  );
 
-  const googleKey = await password({
-    message: 'GOOGLE_API_KEY (Gemini - optional, press Enter to skip)',
-  });
+  const googleKey = await readFromStdin(
+    'GOOGLE_API_KEY (Gemini - optional, press Enter to skip): '
+  );
 
   if (!anthropicKey && !openaiKey && !googleKey) {
     console.log('Error: At least one API key must be provided.');
     return;
   }
 
-  const backendUrl = await input({
-    message: 'Backend URL',
-    default: 'http://localhost:4200',
-  });
+  const backendUrl = await readFromStdin('Backend URL (http://localhost:4200): ') || 'http://localhost:4200';
 
-  const dashboardPort = await input({
-    message: 'Dashboard port',
-    default: '4201',
-  });
+  const dashboardPort = await readFromStdin('Dashboard port (4201): ') || '4201';
 
   // Create .env.local
   const envContent = `# Deep Agents Configuration
@@ -81,4 +87,7 @@ DASHBOARD_PORT=${dashboardPort}
 
   reloadEnv(envPath);
   console.log('Configuration saved to .env.local and loaded into environment.');
+
+  // Close readline interface
+  rl.close();
 }

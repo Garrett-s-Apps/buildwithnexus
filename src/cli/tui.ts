@@ -13,7 +13,7 @@ export class TUI {
     );
     console.log(
       chalk.cyan('║') +
-        chalk.bold.white('        🚀 DEEP AGENTS - Autonomous Execution Engine        ') +
+        chalk.bold.white('        🚀 Nexus - Autonomous Agent Orchestration             ') +
         chalk.cyan('║')
     );
     console.log(

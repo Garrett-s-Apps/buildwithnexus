@@ -7,30 +7,26 @@ import { hasAnyKey, reloadEnv, loadApiKeys } from '../core/config.js';
 export async function interactiveMode() {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
 
-  // Check if any API key is configured
+  // Always ask for API keys on startup
+  console.log(chalk.cyan('\n🔧 Configure API Keys\n'));
+  const { deepAgentsInitCommand } = await import('./init-command.js');
+  await deepAgentsInitCommand();
+
+  // Reload environment from ~/.env.local
+  reloadEnv();
+
+  // Verify keys are loaded
   if (!hasAnyKey()) {
-    // No keys set, run init flow
-    console.log(chalk.cyan('\n🔧 First-time setup required\n'));
-    const { deepAgentsInitCommand } = await import('./init-command.js');
-    await deepAgentsInitCommand();
-
-    // Reload environment from ~/.env.local
-    reloadEnv();
-
-    // Re-check after reload
-    if (!hasAnyKey()) {
-      console.error('Error: At least one API key is required to use buildwithnexus.');
-      console.error('Please run: buildwithnexus da-init');
-      process.exit(1);
-    }
-
-    // Verify keys are actually loaded
-    const keys = loadApiKeys();
-    console.log(chalk.green('\n✓ Configuration complete!'));
-    console.log(chalk.gray(`  Anthropic: ${keys.anthropic ? '✓' : '✗'}`));
-    console.log(chalk.gray(`  OpenAI: ${keys.openai ? '✓' : '✗'}`));
-    console.log(chalk.gray(`  Google: ${keys.google ? '✓' : '✗'}\n`));
+    console.error('Error: At least one API key is required to use buildwithnexus.');
+    process.exit(1);
   }
+
+  // Show configured keys
+  const keys = loadApiKeys();
+  console.log(chalk.green('\n✓ Keys configured!'));
+  console.log(chalk.gray(`  Anthropic: ${keys.anthropic ? '✓' : '✗'}`));
+  console.log(chalk.gray(`  OpenAI: ${keys.openai ? '✓' : '✗'}`));
+  console.log(chalk.gray(`  Google: ${keys.google ? '✓' : '✗'}\n`));
 
   try {
     const response = await fetch(`${backendUrl}/health`);
@@ -52,14 +48,6 @@ export async function interactiveMode() {
     new Promise((resolve) => rl.question(question, resolve));
 
   console.clear();
-  console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
-  console.log(
-    chalk.cyan('║') +
-      chalk.bold.white('        🚀 DEEP AGENTS - Autonomous Execution Engine        ') +
-      chalk.cyan('║')
-  );
-  console.log(chalk.cyan('╚════════════════════════════════════════════════════════════╝'));
-  console.log('');
   console.log(chalk.gray('Welcome! Describe what you want the AI agents to do.'));
   console.log(chalk.gray('Type "exit" to quit.\n'));
 
@@ -175,7 +163,7 @@ function printAppHeader() {
   console.log(chalk.cyan('╔════════════════════════════════════════════════════════════╗'));
   console.log(
     chalk.cyan('║') +
-      chalk.bold.white('        🚀 DEEP AGENTS - Autonomous Execution Engine        ') +
+      chalk.bold.white('        🚀 Nexus - Autonomous Agent Orchestration             ') +
       chalk.cyan('║')
   );
   console.log(chalk.cyan('╚════════════════════════════════════════════════════════════╝'));

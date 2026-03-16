@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export async function dashboardCommand(options: { port?: string }) {
   const port = options.port || '4201';
 
-  console.log(`Starting Deep Agents Dashboard on http://localhost:${port}\n`);
+  console.log(`Starting Nexus Dashboard on http://localhost:${port}\n`);
 
   const dashboardPath = path.join(__dirname, '../deep-agents/dashboard/server.js');
 

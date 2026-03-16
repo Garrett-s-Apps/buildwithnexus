@@ -23,19 +23,19 @@ checkForUpdates(version);
 
 program
   .name('buildwithnexus')
-  .description('Deep Agents - AI-Powered Task Execution')
+  .description('Nexus - AI-Powered Task Execution')
   .version(version);
 
-// Deep Agents init command (setup API keys)
+// Nexus init command (setup API keys)
 program
   .command('da-init')
-  .description('Initialize Deep Agents (set up API keys and .env.local)')
+  .description('Initialize Nexus (set up API keys and .env.local)')
   .action(deepAgentsInitCommand);
 
 // Run command
 program
   .command('run <task>')
-  .description('Run a task with Deep Agents')
+  .description('Run a task with Nexus')
   .option('-a, --agent <name>', 'Agent role (engineer, researcher, etc)', 'engineer')
   .option('-g, --goal <goal>', 'Agent goal')
   .option('-m, --model <model>', 'LLM model', 'claude-sonnet-4-20250514')
@@ -44,14 +44,14 @@ program
 // Dashboard command
 program
   .command('dashboard')
-  .description('Start the Deep Agents dashboard server')
+  .description('Start the Nexus dashboard server')
   .option('-p, --port <port>', 'Dashboard port', '4201')
   .action(dashboardCommand);
 
 // Status command
 program
   .command('da-status')
-  .description('Check Deep Agents backend status')
+  .description('Check Nexus backend status')
   .action(async () => {
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
     try {

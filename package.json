@@ -1,6 +1,6 @@
 {
   "name": "buildwithnexus",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "Interactive AI agent orchestrator with intent-based planning, execution, and brainstorming modes",
   "type": "module",
   "bin": {
@@ -48,6 +48,7 @@
   "homepage": "https://buildwithnexus.dev",
   "dependencies": {
     "@inquirer/prompts": "^8.2.1",
+    "buildwithnexus": "^0.6.4",
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
     "dotenv": "^17.3.1",

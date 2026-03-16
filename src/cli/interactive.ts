@@ -78,11 +78,11 @@ async function selectMode(suggested: Mode, ask: (q: string) => Promise<string>):
       chalk.gray(' to use ') +
       modeColor[suggested](suggested) +
       chalk.gray(' or type ') +
-      chalk.bold('p') +
+      chalk.bold('plan') +
       chalk.gray('/') +
-      chalk.bold('b') +
+      chalk.bold('build') +
       chalk.gray('/') +
-      chalk.bold('br') +
+      chalk.bold('brainstorm') +
       chalk.gray(' to switch: ')
   );
 

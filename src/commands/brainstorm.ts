@@ -6,6 +6,7 @@ import { createSpinner, succeed, fail } from "../ui/spinner.js";
 import { loadConfig } from "../core/secrets.js";
 import { isNexusRunning } from "../core/docker.js";
 import { redact, redactError } from "../core/dlp.js";
+import { checkServerHealth } from "../core/api.js";
 
 const COS_PREFIX = chalk.bold.cyan("  Chief of Staff");
 const YOU_PREFIX = chalk.bold.white("  You");
@@ -62,14 +63,7 @@ export const brainstormCommand = new Command("brainstorm")
       // Check server health
       const spinner = createSpinner("Connecting to NEXUS...");
       spinner.start();
-      let healthOk = false;
-      try {
-        const healthRes = await fetch(`http://localhost:${config.httpPort}/health`);
-        const healthText = await healthRes.text();
-        healthOk = healthRes.ok && healthText.includes("ok");
-      } catch {
-        // fetch threw — server not reachable
-      }
+      const healthOk = await checkServerHealth(config.httpPort);
       if (!healthOk) {
         fail(spinner, "NEXUS server is not healthy");
         log.warn("Check status: buildwithnexus status");

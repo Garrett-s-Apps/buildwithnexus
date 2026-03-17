@@ -2,8 +2,7 @@ import { Command } from "commander";
 import { createSpinner, succeed, fail } from "../ui/spinner.js";
 import { log } from "../ui/logger.js";
 import { loadConfig, loadKeys } from "../core/secrets.js";
-import { isNexusRunning, startNexus, pullImage } from "../core/docker.js";
-import { waitForServer } from "../core/health.js";
+import { isNexusRunning, pullImage, launchNexus, imageExistsLocally } from "../core/docker.js";
 import { startTunnel } from "../core/tunnel.js";
 
 export const startCommand = new Command("start")
@@ -20,27 +19,27 @@ export const startCommand = new Command("start")
       return;
     }
 
-    let spinner = createSpinner("Pulling NEXUS image...");
+    let spinner = createSpinner("Checking NEXUS image...");
     spinner.start();
-    await pullImage("buildwithnexus/nexus", "latest");
+    const localExists = await imageExistsLocally("buildwithnexus/nexus", "latest");
+    if (!localExists) {
+      spinner.text = "Pulling NEXUS image...";
+      await pullImage("buildwithnexus/nexus", "latest");
+    }
     succeed(spinner, "Image ready");
+
+    const keys = loadKeys();
+    if (!keys) {
+      log.error("No API keys found. Run: buildwithnexus init");
+      process.exit(1);
+    }
 
     spinner = createSpinner("Starting NEXUS container...");
     spinner.start();
-    const keys = loadKeys();
-    if (!keys) {
-      fail(spinner, "No API keys found. Run: buildwithnexus init");
-      process.exit(1);
-    }
-    await startNexus(
+    const ok = await launchNexus(
       { anthropic: keys.ANTHROPIC_API_KEY, openai: keys.OPENAI_API_KEY || "" },
-      { port: config.httpPort }
+      { port: config.httpPort },
     );
-    succeed(spinner, "Container started");
-
-    spinner = createSpinner("Waiting for NEXUS server...");
-    spinner.start();
-    const ok = await waitForServer(60_000);
     if (ok) {
       succeed(spinner, "NEXUS server running");
     } else {

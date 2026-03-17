@@ -21,18 +21,16 @@ import { ninetyNineCommand } from './commands/ninety-nine.js';
 import { shellCommand } from './commands/shell.js';
 import { checkForUpdates } from './core/update-notifier.js';
 import { MODELS } from './core/models.js';
+import { resolvedVersion } from './core/version.js';
 import dotenv from 'dotenv';
 import os from 'os';
 import path from 'path';
-import pkg from '../package.json' assert { type: 'json' };
 
 // Load .env.local from home directory (works from any working directory)
 const homeEnvPath = path.join(os.homedir(), '.env.local');
 dotenv.config({ path: homeEnvPath });
 
-export const version = typeof __BUILDWITHNEXUS_VERSION__ !== 'undefined'
-  ? __BUILDWITHNEXUS_VERSION__
-  : pkg.version;
+export const version = resolvedVersion;
 
 checkForUpdates(version);
 

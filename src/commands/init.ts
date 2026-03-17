@@ -18,8 +18,7 @@ import {
   isDockerInstalled,
   imageExistsLocally,
   pullImage,
-  startNexus,
-  isNexusRunning,
+  launchNexus,
   stopNexus,
 } from "../core/docker.js";
 import { installCloudflared, startTunnel } from "../core/tunnel.js";
@@ -40,35 +39,6 @@ async function withSpinner<T>(
   const result = await fn();
   succeed(spinner, label);
   return result;
-}
-
-/**
- * Wait for the NEXUS server to respond on the given port.
- * Polls http://localhost:{port}/health with exponential backoff.
- * Timeout default: 120s (Docker starts much faster than a VM).
- */
-async function waitForHealthy(port: number, timeoutMs = 120_000): Promise<boolean> {
-  const start = Date.now();
-  let attempt = 0;
-  const backoffMs = (n: number) => Math.min(2000 * Math.pow(2, n), 10_000);
-
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const res = await fetch(`http://localhost:${port}/health`);
-      if (res.ok) {
-        const body = await res.text();
-        if (body.includes("ok")) return true;
-      }
-    } catch {
-      // not ready yet
-    }
-
-    const delay = backoffMs(attempt++);
-    const remaining = timeoutMs - (Date.now() - start);
-    if (remaining <= 0) break;
-    await new Promise((r) => setTimeout(r, Math.min(delay, remaining)));
-  }
-  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -196,19 +166,14 @@ const phases: Phase[] = [
     run: async (ctx, spinner) => {
       const { config, keys } = ctx as InitContext;
 
-      // Stop any existing NEXUS container first
-      const alreadyRunning = await isNexusRunning();
-      if (alreadyRunning) {
-        await withSpinner(spinner, "Stopping existing NEXUS container...", () => stopNexus());
-      }
-
       await withSpinner(spinner, "Starting NEXUS container...", () =>
-        startNexus(
+        launchNexus(
           {
             anthropic: keys.ANTHROPIC_API_KEY,
             openai: keys.OPENAI_API_KEY || "",
           },
           { port: config.httpPort },
+          { healthTimeoutMs: 0, stopExisting: true },
         ),
       );
       ctx.containerStarted = true;
@@ -222,7 +187,8 @@ const phases: Phase[] = [
       const { config } = ctx as InitContext;
       spinner.text = `Waiting for NEXUS server on port ${config.httpPort}...`;
       spinner.start();
-      const healthy = await waitForHealthy(config.httpPort);
+      const { waitForServer } = await import("../core/health.js");
+      const healthy = await waitForServer(120_000);
       if (!healthy) {
         fail(spinner, "Server failed to start within 120s");
         log.warn("Check logs: docker logs nexus");
@@ -244,11 +210,11 @@ const phases: Phase[] = [
 
       const platform = detectPlatform();
       await withSpinner(spinner, "Installing cloudflared...", () =>
-        installCloudflared(config.httpPort, platform.arch),
+        installCloudflared(platform.arch),
       );
       spinner.text = "Starting tunnel...";
       spinner.start();
-      const url = await startTunnel(config.httpPort);
+      const url = await startTunnel();
       if (url) {
         ctx.tunnelUrl = url;
         succeed(spinner, `Tunnel active: ${url}`);

@@ -6,11 +6,10 @@ import { hasAnyKey, loadApiKeys, validateBackendUrl } from '../core/config.js';
 import { loadKeys } from '../core/secrets.js';
 import { parseSSEStream } from '../core/sse-parser.js';
 import { startBackend } from '../core/docker.js';
-import pkg from '../../package.json' assert { type: 'json' };
+import { resolvedVersion } from '../core/version.js';
+import { buildRunPayload, checkServerHealth } from '../core/api.js';
 
-const appVersion = typeof __BUILDWITHNEXUS_VERSION__ !== 'undefined'
-  ? __BUILDWITHNEXUS_VERSION__
-  : pkg.version;
+const appVersion = resolvedVersion;
 
 export async function interactiveMode() {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
@@ -61,28 +60,12 @@ export async function interactiveMode() {
   async function waitForBackend(): Promise<boolean> {
     for (let i = 0; i < 5; i++) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      try {
-        const retryResponse = await fetch(`${backendUrl}/health`, { signal: AbortSignal.timeout(10000) });
-        if (retryResponse.ok) return true;
-      } catch {
-        // not ready yet
-      }
+      if (await checkServerHealth(backendUrl)) return true;
     }
     return false;
   }
 
-  try {
-    const response = await fetch(`${backendUrl}/health`, { signal: AbortSignal.timeout(10000) });
-    if (!response.ok) {
-      console.log(chalk.yellow('⚠️  Backend not responding, starting...'));
-      await startBackend();
-      const ready = await waitForBackend();
-      if (!ready) {
-        console.error(chalk.red('❌ Backend failed to start. Run: buildwithnexus server'));
-        process.exit(1);
-      }
-    }
-  } catch {
+  if (!(await checkServerHealth(backendUrl))) {
     console.log(chalk.yellow('⚠️  Backend not accessible, attempting to start...'));
     await startBackend();
     const ready = await waitForBackend();
@@ -261,13 +244,11 @@ async function planModeLoop(
 
   let steps: string[] = [];
 
-  const keys = loadApiKeys();
-
   try {
     const response = await fetch(`${backendUrl}/api/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task, agent_role: 'engineer', agent_goal: '', api_key: keys.anthropic || '', openai_api_key: keys.openai || '', google_api_key: keys.google || '' }),
+      body: JSON.stringify(buildRunPayload(task, 'engineer', '')),
       signal: AbortSignal.timeout(120000),
     });
 
@@ -276,10 +257,31 @@ async function planModeLoop(
       return 'cancel';
     }
 
-    const { run_id } = (await response.json()) as { run_id: string };
+    const planText = await response.text();
+    let planParsed: unknown;
+    try {
+      planParsed = JSON.parse(planText);
+    } catch {
+      console.error(chalk.red(`Backend returned invalid JSON: ${planText.slice(0, 200)}`));
+      return 'cancel';
+    }
+    const { run_id: planRunId } = planParsed as { run_id?: string };
+    if (!planRunId || typeof planRunId !== 'string') {
+      console.error(chalk.red('Backend did not return a valid run ID'));
+      return 'cancel';
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(planRunId)) {
+      console.error(chalk.red('Backend returned run ID with invalid characters'));
+      return 'cancel';
+    }
+    const run_id = planRunId;
     tui.displayConnected(run_id);
 
     const streamResponse = await fetch(`${backendUrl}/api/stream/${run_id}`, { signal: AbortSignal.timeout(120000) });
+    if (!streamResponse.ok) {
+      console.error(chalk.red(`Stream endpoint returned ${streamResponse.status}`));
+      return 'cancel';
+    }
     const reader = streamResponse.body?.getReader();
 
     if (!reader) throw new Error('No response body');
@@ -376,13 +378,11 @@ async function buildModeLoop(
   console.log(chalk.bold('Task:'), chalk.white(task));
   tui.displayConnecting();
 
-  const keys = loadApiKeys();
-
   try {
     const response = await fetch(`${backendUrl}/api/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task, agent_role: 'engineer', agent_goal: '', api_key: keys.anthropic || '', openai_api_key: keys.openai || '', google_api_key: keys.google || '' }),
+      body: JSON.stringify(buildRunPayload(task, 'engineer', '')),
       signal: AbortSignal.timeout(120000),
     });
 
@@ -391,13 +391,34 @@ async function buildModeLoop(
       return 'done';
     }
 
-    const { run_id } = (await response.json()) as { run_id: string };
+    const buildText = await response.text();
+    let buildParsed: unknown;
+    try {
+      buildParsed = JSON.parse(buildText);
+    } catch {
+      console.error(chalk.red(`Backend returned invalid JSON: ${buildText.slice(0, 200)}`));
+      return 'done';
+    }
+    const { run_id: buildRunId } = buildParsed as { run_id?: string };
+    if (!buildRunId || typeof buildRunId !== 'string') {
+      console.error(chalk.red('Backend did not return a valid run ID'));
+      return 'done';
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(buildRunId)) {
+      console.error(chalk.red('Backend returned run ID with invalid characters'));
+      return 'done';
+    }
+    const run_id = buildRunId;
     tui.displayConnected(run_id);
 
     console.log(chalk.bold.green('⚙️  Executing...'));
     tui.displayStreamStart();
 
     const streamResponse = await fetch(`${backendUrl}/api/stream/${run_id}`, { signal: AbortSignal.timeout(120000) });
+    if (!streamResponse.ok) {
+      console.error(chalk.red(`Stream endpoint returned ${streamResponse.status}`));
+      return 'done';
+    }
     const reader = streamResponse.body?.getReader();
 
     if (!reader) throw new Error('No response body');
@@ -459,65 +480,85 @@ async function brainstormModeLoop(
     console.log(chalk.bold.blue('💡 Thinking...'));
 
     try {
-      const keys = loadApiKeys();
       const response = await fetch(`${backendUrl}/api/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          task: currentQuestion,
-          agent_role: 'brainstorm',
-          agent_goal: 'Generate ideas, considerations, and suggestions. Be concise and helpful.',
-          api_key: keys.anthropic || '',
-          openai_api_key: keys.openai || '',
-          google_api_key: keys.google || '',
-        }),
+        body: JSON.stringify(buildRunPayload(
+          currentQuestion,
+          'brainstorm',
+          'Generate ideas, considerations, and suggestions. Be concise and helpful.',
+        )),
         signal: AbortSignal.timeout(120000),
       });
 
       if (response.ok) {
-        const { run_id } = (await response.json()) as { run_id: string };
+        const brainstormText = await response.text();
+        let brainstormParsed: unknown;
+        try {
+          brainstormParsed = JSON.parse(brainstormText);
+        } catch {
+          console.error(chalk.red(`Backend returned invalid JSON: ${brainstormText.slice(0, 200)}`));
+          continue;
+        }
+        const { run_id: brainstormRunId } = brainstormParsed as { run_id?: string };
+        if (!brainstormRunId || typeof brainstormRunId !== 'string') {
+          console.error(chalk.red('Backend did not return a valid run ID'));
+          continue;
+        }
+        if (!/^[a-zA-Z0-9_-]+$/.test(brainstormRunId)) {
+          console.error(chalk.red('Backend returned run ID with invalid characters'));
+          continue;
+        }
+        const run_id = brainstormRunId;
         const streamResponse = await fetch(`${backendUrl}/api/stream/${run_id}`, { signal: AbortSignal.timeout(120000) });
+        if (!streamResponse.ok) {
+          console.error(chalk.red(`Stream endpoint returned ${streamResponse.status}`));
+          continue;
+        }
         const reader = streamResponse.body?.getReader();
 
-        if (reader) {
-          let responseText = '';
+        if (!reader) {
+          console.error(chalk.red('No response body from agent'));
+          continue;
+        }
 
-          for await (const parsed of parseSSEStream(reader)) {
-            const type = parsed.type;
-            const data = parsed.data;
+        let responseText = '';
 
-            if (type === 'done' || type === 'execution_complete') {
-              const summary = (data['summary'] as string) || '';
-              if (summary) responseText = summary;
-              break;
-            } else if (type === 'error') {
-              const errorMsg = (data['error'] as string) || (data['content'] as string) || 'Unknown error';
-              responseText += errorMsg + '\n';
-              break;
-            } else if (type === 'thought' || type === 'observation') {
-              const content = (data['content'] as string) || '';
-              if (content) responseText += content + '\n';
-            } else if (type === 'agent_response' || type === 'agent_result') {
-              // Handle agent response events
-              const content = (data['content'] as string) || (data['result'] as string) || '';
-              if (content) responseText += content + '\n';
-            } else if (type === 'action') {
-              const content = (data['content'] as string) || '';
-              if (content) responseText += content + '\n';
-            } else if (type === 'agent_working') {
-              // Skip intermediate agent_working events in brainstorm mode
-            } else if (type !== 'plan') {
-              // Catch-all for any other event types
-              const content = (data['content'] as string) || (data['response'] as string) || '';
-              if (content) responseText += content + '\n';
-            }
+        for await (const parsed of parseSSEStream(reader)) {
+          const type = parsed.type;
+          const data = parsed.data;
+
+          if (type === 'done' || type === 'execution_complete' || type === 'final_result') {
+            const summary = (data['summary'] as string) || (data['result'] as string) || '';
+            if (summary) responseText = summary;
+            break;
+          } else if (type === 'error') {
+            const errorMsg = (data['error'] as string) || (data['content'] as string) || 'Unknown error';
+            responseText += errorMsg + '\n';
+            break;
+          } else if (type === 'thought' || type === 'observation') {
+            const content = (data['content'] as string) || '';
+            if (content) responseText += content + '\n';
+          } else if (type === 'agent_response' || type === 'agent_result') {
+            // Handle agent response events
+            const content = (data['content'] as string) || (data['result'] as string) || '';
+            if (content) responseText += content + '\n';
+          } else if (type === 'action') {
+            const content = (data['content'] as string) || '';
+            if (content) responseText += content + '\n';
+          } else if (type === 'agent_working' || type === 'started') {
+            // Skip intermediate agent_working and started events in brainstorm mode
+          } else if (type !== 'plan') {
+            // Catch-all for any other event types
+            const content = (data['content'] as string) || (data['response'] as string) || '';
+            if (content) responseText += content + '\n';
           }
+        }
 
-          if (responseText.trim()) {
-            tui.displayBrainstormResponse(responseText.trim());
-          } else {
-            console.log(chalk.gray('(No response received from agent)'));
-          }
+        if (responseText.trim()) {
+          tui.displayBrainstormResponse(responseText.trim());
+        } else {
+          console.log(chalk.gray('(No response received from agent)'));
         }
       } else {
         console.log(chalk.red('Could not reach backend for brainstorm response.'));

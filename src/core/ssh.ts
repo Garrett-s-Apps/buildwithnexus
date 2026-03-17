@@ -7,6 +7,7 @@ import { NodeSSH } from "node-ssh";
 import { NEXUS_HOME } from "./secrets.js";
 import { audit, redact, scrubEnv } from "./dlp.js";
 import { isNexusRunning } from "./docker.js";
+import { backoffMs } from "./utils.js";
 
 const SSH_DIR = path.join(NEXUS_HOME, "ssh");
 const SSH_KEY = path.join(SSH_DIR, "id_nexus_vm");
@@ -147,9 +148,6 @@ export async function waitForSsh(port: number, timeoutMs: number = 900_000): Pro
   let attempt = 0;
   let lastCategory = "";
   let firstErrorLogged = false;
-  // Exponential backoff: 3s -> 6s -> 12s -> 30s cap
-  const backoffMs = (n: number) => Math.min(3000 * Math.pow(2, n), 30_000);
-
   while (Date.now() - start < timeoutMs) {
     // Docker container liveness guard: fail fast if container is dead
     if (!(await isNexusRunning())) {

@@ -29,7 +29,7 @@ export class AgentLoader {
 
   loadAllAgents(): AgentDefinition[] {
     if (!fs.existsSync(this.configDir)) {
-      return this.getDefaultAgents();
+      return agentTemplates;
     }
 
     const agents: AgentDefinition[] = [];
@@ -46,11 +46,7 @@ export class AgentLoader {
       }
     }
 
-    return agents.length > 0 ? agents : this.getDefaultAgents();
-  }
-
-  getDefaultAgents(): AgentDefinition[] {
-    return agentTemplates;
+    return agents.length > 0 ? agents : agentTemplates;
   }
 
   saveAgent(agent: AgentDefinition): void {

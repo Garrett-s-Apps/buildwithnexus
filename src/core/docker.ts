@@ -509,7 +509,7 @@ export async function startBackend(): Promise<void> {
   const nexusDir = path.join(os.homedir(), "Projects", "nexus");
   log.step(`Starting Nexus backend from ${nexusDir}...`);
 
-  const child = spawn("python", ["-m", "src.deep_agents_server"], {
+  const child = spawn("python3", ["-m", "src.deep_agents_server"], {
     cwd: nexusDir,
     detached: true,
     stdio: "ignore",
@@ -518,6 +518,33 @@ export async function startBackend(): Promise<void> {
 
   child.unref();
   log.success("Nexus backend process started");
+}
+
+/**
+ * High-level launcher: stop any existing container, start a fresh one,
+ * and wait for the server health check.
+ *
+ * Consolidates the launch sequence shared by `start` and `init` commands.
+ * Returns true when the server is healthy within `healthTimeoutMs`.
+ */
+export async function launchNexus(
+  keys: { anthropic: string; openai: string },
+  config: { port: number },
+  opts?: { healthTimeoutMs?: number; stopExisting?: boolean },
+): Promise<boolean> {
+  const { healthTimeoutMs = 60_000, stopExisting = true } = opts ?? {};
+
+  if (stopExisting && (await isNexusRunning())) {
+    await stopNexus();
+  }
+
+  await startNexus(keys, config);
+
+  if (healthTimeoutMs <= 0) return true;
+
+  // Inline import to avoid circular dependency (health.ts -> docker.ts)
+  const { waitForServer } = await import("./health.js");
+  return waitForServer(healthTimeoutMs);
 }
 
 export async function isNexusRunning(): Promise<boolean> {

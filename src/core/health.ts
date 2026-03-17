@@ -1,4 +1,5 @@
 import { dockerExec } from "./docker.js";
+import { backoffMs } from "./utils.js";
 
 export interface HealthStatus {
   vmRunning: boolean;
@@ -80,8 +81,6 @@ export async function waitForServer(timeoutMs: number = 900_000): Promise<boolea
   const start = Date.now();
   let lastLog = 0;
   let attempt = 0;
-  // Exponential backoff: 3s → 6s → 12s → 30s max
-  const backoffMs = (n: number) => Math.min(3000 * Math.pow(2, n), 30_000);
 
   while (Date.now() - start < timeoutMs) {
     try {

@@ -54,3 +54,17 @@
 {"t":0,"agent":"ac0665f","agent_type":"executor","event":"agent_start","parent_mode":"none"}
 {"t":0,"agent":"ac17266","agent_type":"executor","event":"agent_stop","success":true,"duration_ms":38307}
 {"t":0,"agent":"ac0665f","agent_type":"executor","event":"agent_stop","success":true,"duration_ms":85053}
+{"t":0,"agent":"system","event":"skill_invoked","skill_name":"entropy-reducer:reduce-entropy"}
+{"t":0,"agent":"adaec33","agent_type":"entropy-reducer:codebase-reviewer","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"a6d66db","agent_type":"entropy-reducer:codebase-reviewer","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"adaec33","agent_type":"entropy-reducer:codebase-reviewer","event":"agent_stop","success":true,"duration_ms":84548}
+{"t":0,"agent":"a6d66db","agent_type":"entropy-reducer:codebase-reviewer","event":"agent_stop","success":true,"duration_ms":126789}
+{"t":0,"agent":"abeff15","agent_type":"entropy-reducer:entropy-analyzer","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"ac7555b","agent_type":"entropy-reducer:entropy-analyzer","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"abeff15","agent_type":"entropy-reducer:entropy-analyzer","event":"agent_stop","success":true,"duration_ms":110225}
+{"t":0,"agent":"ac7555b","agent_type":"entropy-reducer:entropy-analyzer","event":"agent_stop","success":true,"duration_ms":141570}
+{"t":0,"agent":"a5f15d7","agent_type":"entropy-reducer:safety-auditor","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"a759c84","agent_type":"entropy-reducer:ui-guardian","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"a759c84","agent_type":"entropy-reducer:ui-guardian","event":"agent_stop","success":true,"duration_ms":74042}
+{"t":0,"agent":"a5f15d7","agent_type":"entropy-reducer:safety-auditor","event":"agent_stop","success":true,"duration_ms":209539}
+{"t":0,"agent":"a6d4559","agent_type":"unknown","event":"agent_stop","success":true}

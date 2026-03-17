@@ -7,35 +7,7 @@ import { isNexusRunning } from "../core/docker.js";
 import { redact, redactError, shellEscape } from "../core/dlp.js";
 import { Repl } from "../ui/repl.js";
 import { EventStream, formatEvent } from "../core/event-stream.js";
-
-async function httpPost(httpPort: number, path: string, body: unknown): Promise<string> {
-  const res = await fetch(`http://localhost:${httpPort}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(60_000),
-  });
-  if (!res.ok) throw new Error(`Server returned ${res.status}`);
-  const text = await res.text();
-  try {
-    const parsed = JSON.parse(text);
-    return parsed.response ?? parsed.message ?? text;
-  } catch {
-    return text;
-  }
-}
-
-async function httpGet(httpPort: number, path: string): Promise<{ ok: boolean; text: string }> {
-  try {
-    const res = await fetch(`http://localhost:${httpPort}${path}`, {
-      signal: AbortSignal.timeout(10_000),
-    });
-    const text = await res.text();
-    return { ok: res.ok, text };
-  } catch {
-    return { ok: false, text: "" };
-  }
-}
+import { httpPost, httpGet } from "../core/api.js";
 
 async function sendMessage(httpPort: number, message: string): Promise<string> {
   return httpPost(httpPort, "/message", { message, source: "shell" });

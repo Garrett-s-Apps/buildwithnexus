@@ -1,6 +1,8 @@
 // src/cli/run-command.ts
 import { tui } from './tui.js';
-import { loadApiKeys, validateBackendUrl } from '../core/config.js';
+import { validateBackendUrl } from '../core/config.js';
+import { buildRunPayload, checkServerHealth } from '../core/api.js';
+import { parseSSEStream } from '../core/sse-parser.js';
 
 export async function runCommand(
   task: string,
@@ -20,15 +22,7 @@ export async function runCommand(
 
   try {
     // Check backend is running
-    let healthOk = false;
-    try {
-      const healthResponse = await fetch(`${backendUrl}/health`);
-      healthOk = healthResponse.ok;
-    } catch {
-      // fetch threw - backend not reachable
-    }
-
-    if (!healthOk) {
+    if (!(await checkServerHealth(backendUrl))) {
       console.error(
         'Backend not responding. Start it with:\n' +
         '   buildwithnexus server'
@@ -37,18 +31,11 @@ export async function runCommand(
     }
 
     // POST to backend
-    const keys = loadApiKeys();
+    const payload = buildRunPayload(task, options.agent, options.goal || '');
     const response = await fetch(`${backendUrl}/api/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        task,
-        agent_role: options.agent,
-        agent_goal: options.goal || '',
-        api_key: keys.anthropic || '',
-        openai_api_key: keys.openai || '',
-        google_api_key: keys.google || '',
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {

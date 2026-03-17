@@ -509,7 +509,7 @@ export async function startBackend(): Promise<void> {
   const nexusDir = path.join(os.homedir(), "Projects", "nexus");
   log.step(`Starting Nexus backend from ${nexusDir}...`);
 
-  const child = spawn("python3", ["-m", "src.deep_agents_server"], {
+  const child = spawn("python3", ["-m", "src.main"], {
     cwd: nexusDir,
     detached: true,
     stdio: "ignore",

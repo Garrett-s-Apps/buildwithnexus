@@ -80,7 +80,23 @@ export async function interactiveMode() {
     output: process.stdout,
   });
 
+  // Track shift+tab key presses for mode cycling
   let modeIndicator = '';
+  let shiftTabPressed = false;
+  let requestedModeSwitch = false;
+
+  // Set up keypress detection for shift+tab
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(true);
+    const originalKD = process.stdin._handle?.onread;
+    process.stdin.on('data', (data) => {
+      // Detect shift+tab (escape sequence: \x1b[Z)
+      if (data.toString() === '\x1b[Z') {
+        shiftTabPressed = true;
+        requestedModeSwitch = true;
+      }
+    });
+  }
 
   const ask = (question: string, currentMode?: Mode): Promise<string> =>
     new Promise((resolve) => {
@@ -94,7 +110,15 @@ export async function interactiveMode() {
         modeIndicator = `\n${chalk.dim(`→ ${agentNames[currentMode]}`)}`;
       }
 
-      rl.question(question + modeIndicator, resolve);
+      rl.question(question + modeIndicator, (answer) => {
+        // Check if user pressed shift+tab
+        if (requestedModeSwitch) {
+          requestedModeSwitch = false;
+          resolve('__SHIFT_TAB__');
+        } else {
+          resolve(answer);
+        }
+      });
     });
 
   console.clear();
@@ -347,7 +371,7 @@ async function planModeLoop(
       displayPlanSteps(steps);
       continue;
     }
-    if (answer === 's' || answer === 'switch') {
+    if (answer === '__shift_tab__' || answer === 's' || answer === 'switch') {
       return 'switch';
     }
   }
@@ -475,7 +499,7 @@ async function buildModeLoop(
       chalk.gray(' Switch mode')
   );
   const answer = (await ask(chalk.bold('> '), currentMode)).trim().toLowerCase();
-  if (answer === 's' || answer === 'switch') return 'switch';
+  if (answer === '__shift_tab__' || answer === 's' || answer === 'switch') return 'switch';
   return 'done';
 }
 
@@ -589,7 +613,7 @@ async function brainstormModeLoop(
     const lower = followUp.trim().toLowerCase();
 
     if (lower === 'done' || lower === 'exit') return 'done';
-    if (lower === 'switch') return 'switch';
+    if (lower === '__shift_tab__' || lower === 'switch') return 'switch';
     if (!followUp.trim()) continue;
 
     currentQuestion = followUp.trim();

@@ -80,8 +80,22 @@ export async function interactiveMode() {
     output: process.stdout,
   });
 
-  const ask = (question: string): Promise<string> =>
-    new Promise((resolve) => rl.question(question, resolve));
+  let modeIndicator = '';
+
+  const ask = (question: string, currentMode?: Mode): Promise<string> =>
+    new Promise((resolve) => {
+      // If currentMode is provided, update the indicator
+      if (currentMode) {
+        const agentNames: Record<Mode, string> = {
+          PLAN: '🎯 Planner',
+          BUILD: '🔨 Builder',
+          BRAINSTORM: '💡 Brainstorm Chief',
+        };
+        modeIndicator = `\n${chalk.dim(`→ ${agentNames[currentMode]}`)}`;
+      }
+
+      rl.question(question + modeIndicator, resolve);
+    });
 
   console.clear();
   console.log(chalk.gray('Welcome! Describe what you want the AI agents to do.'));
@@ -152,7 +166,7 @@ async function runModeLoop(
   mode: Mode,
   task: string,
   backendUrl: string,
-  ask: (q: string) => Promise<string>
+  ask: (q: string, m?: Mode) => Promise<string>
 ): Promise<void> {
   let currentMode = mode;
 
@@ -163,7 +177,7 @@ async function runModeLoop(
     tui.displayModeHeader(currentMode);
 
     if (currentMode === 'PLAN') {
-      const next = await planModeLoop(task, backendUrl, ask);
+      const next = await planModeLoop(task, backendUrl, currentMode, ask);
       if (next === 'BUILD') {
         currentMode = 'BUILD';
         continue;
@@ -177,7 +191,7 @@ async function runModeLoop(
     }
 
     if (currentMode === 'BUILD') {
-      const next = await buildModeLoop(task, backendUrl, ask);
+      const next = await buildModeLoop(task, backendUrl, currentMode, ask);
       if (next === 'switch') {
         currentMode = await promptModeSwitch(currentMode, ask);
         continue;
@@ -186,7 +200,7 @@ async function runModeLoop(
     }
 
     if (currentMode === 'BRAINSTORM') {
-      const next = await brainstormModeLoop(task, backendUrl, ask);
+      const next = await brainstormModeLoop(task, backendUrl, currentMode, ask);
       if (next === 'switch') {
         currentMode = await promptModeSwitch(currentMode, ask);
         continue;
@@ -236,7 +250,8 @@ async function promptModeSwitch(current: Mode, ask: (q: string) => Promise<strin
 async function planModeLoop(
   task: string,
   backendUrl: string,
-  ask: (q: string) => Promise<string>
+  currentMode: Mode,
+  ask: (q: string, m?: Mode) => Promise<string>
 ): Promise<'BUILD' | 'switch' | 'cancel' | 'done'> {
   console.log(chalk.bold('Task:'), chalk.white(task));
   console.log('');
@@ -318,7 +333,7 @@ async function planModeLoop(
   // Approval loop
   while (true) {
     console.log(chalk.gray('Options: ') + chalk.bold('[Y]') + chalk.gray(' Execute  ') + chalk.bold('[e]') + chalk.gray(' Edit step  ') + chalk.bold('[s]') + chalk.gray(' Switch mode  ') + chalk.bold('[Esc/n]') + chalk.gray(' Cancel'));
-    const answer = (await ask(tui.displayPermissionPrompt('Execute this plan?'))).trim().toLowerCase();
+    const answer = (await ask(tui.displayPermissionPrompt('Execute this plan?'), currentMode)).trim().toLowerCase();
 
     if (answer === '' || answer === 'y') {
       return 'BUILD';
@@ -328,7 +343,7 @@ async function planModeLoop(
       return 'cancel';
     }
     if (answer === 'e' || answer === 'edit') {
-      steps = await editPlanSteps(steps, ask);
+      steps = await editPlanSteps(steps, currentMode, ask);
       displayPlanSteps(steps);
       continue;
     }
@@ -355,13 +370,13 @@ function displayPlanSteps(steps: string[]) {
   console.log('');
 }
 
-async function editPlanSteps(steps: string[], ask: (q: string) => Promise<string>): Promise<string[]> {
+async function editPlanSteps(steps: string[], currentMode: Mode, ask: (q: string, m?: Mode) => Promise<string>): Promise<string[]> {
   console.log(chalk.gray('Enter step number to edit, or press Enter to finish editing:'));
-  const numStr = await ask(chalk.bold('Step #: '));
+  const numStr = await ask(chalk.bold('Step #: '), currentMode);
   const n = parseInt(numStr.trim(), 10);
   if (!isNaN(n) && n >= 1 && n <= steps.length) {
     console.log(chalk.gray(`Current: ${steps[n - 1]}`));
-    const updated = await ask(chalk.bold('New text: '));
+    const updated = await ask(chalk.bold('New text: '), currentMode);
     if (updated.trim()) steps[n - 1] = updated.trim();
   }
   return steps;
@@ -373,7 +388,8 @@ async function editPlanSteps(steps: string[], ask: (q: string) => Promise<string
 async function buildModeLoop(
   task: string,
   backendUrl: string,
-  ask: (q: string) => Promise<string>
+  currentMode: Mode,
+  ask: (q: string, m?: Mode) => Promise<string>
 ): Promise<'switch' | 'done'> {
   console.log(chalk.bold('Task:'), chalk.white(task));
   tui.displayConnecting();
@@ -458,7 +474,7 @@ async function buildModeLoop(
       chalk.bold('[s]') +
       chalk.gray(' Switch mode')
   );
-  const answer = (await ask(chalk.bold('> '))).trim().toLowerCase();
+  const answer = (await ask(chalk.bold('> '), currentMode)).trim().toLowerCase();
   if (answer === 's' || answer === 'switch') return 'switch';
   return 'done';
 }
@@ -469,7 +485,8 @@ async function buildModeLoop(
 async function brainstormModeLoop(
   task: string,
   backendUrl: string,
-  ask: (q: string) => Promise<string>
+  currentMode: Mode,
+  ask: (q: string, m?: Mode) => Promise<string>
 ): Promise<'switch' | 'done'> {
   console.log(chalk.bold('Starting topic:'), chalk.white(task));
   console.log(chalk.gray('Ask follow-up questions. Type "done" to exit, "switch" to change mode.\n'));
@@ -568,7 +585,7 @@ async function brainstormModeLoop(
       console.error(chalk.red('Error: ' + msg));
     }
 
-    const followUp = await ask(chalk.bold.blue('💬 You: '));
+    const followUp = await ask(chalk.bold.blue('💬 You: '), currentMode);
     const lower = followUp.trim().toLowerCase();
 
     if (lower === 'done' || lower === 'exit') return 'done';

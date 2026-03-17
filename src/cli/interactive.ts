@@ -80,21 +80,9 @@ export async function interactiveMode() {
     output: process.stdout,
   });
 
-  let modeIndicator = '';
-
-  const ask = (question: string, currentMode?: Mode): Promise<string> =>
+  const ask = (question: string): Promise<string> =>
     new Promise((resolve) => {
-      // If currentMode is provided, update the indicator
-      if (currentMode) {
-        const agentNames: Record<Mode, string> = {
-          PLAN: '🎯 Planner',
-          BUILD: '🔨 Builder',
-          BRAINSTORM: '💡 Chief of Staff',
-        };
-        modeIndicator = `\n${chalk.dim(`→ ${agentNames[currentMode]}`)}`;
-      }
-
-      rl.question(question + modeIndicator, resolve);
+      rl.question(question, resolve);
     });
 
   console.clear();
@@ -145,11 +133,11 @@ async function selectMode(suggested: Mode, ask: (q: string) => Promise<string>):
   );
   console.log(
     chalk.gray('  ') +
-      chalk.cyan.bold('[1] PLAN') + chalk.gray(' (p)   design & break down steps') +
+      chalk.cyan.bold('[1] PLAN') + chalk.gray('   design & break down steps') +
       chalk.gray('\n  ') +
-      chalk.green.bold('[2] BUILD') + chalk.gray(' (b)  execute with live streaming') +
+      chalk.green.bold('[2] BUILD') + chalk.gray('  execute with live streaming') +
       chalk.gray('\n  ') +
-      chalk.blue.bold('[3] BRAINSTORM') + chalk.gray(' (bs)  free-form explore & Q&A')
+      chalk.blue.bold('[3] BRAINSTORM') + chalk.gray('  free-form explore & Q&A')
   );
 
   const answer = await ask(chalk.gray('> '));
@@ -166,7 +154,7 @@ async function runModeLoop(
   mode: Mode,
   task: string,
   backendUrl: string,
-  ask: (q: string, m?: Mode) => Promise<string>
+  ask: (q: string) => Promise<string>
 ): Promise<void> {
   let currentMode = mode;
 
@@ -332,8 +320,8 @@ async function planModeLoop(
 
   // Approval loop
   while (true) {
-    console.log(chalk.gray('Options: ') + chalk.bold('[Y]') + chalk.gray(' Execute  ') + chalk.bold('[e]') + chalk.gray(' Edit step  ') + chalk.bold('[s]') + chalk.gray(' Switch mode  ') + chalk.bold('[Esc/n]') + chalk.gray(' Cancel'));
-    const answer = (await ask(tui.displayPermissionPrompt('Execute this plan?'), currentMode)).trim().toLowerCase();
+    console.log(chalk.gray('Options: ') + chalk.bold('[Y]') + chalk.gray(' Execute  ') + chalk.bold('[e]') + chalk.gray(' Edit step  ') + chalk.bold('[n]') + chalk.gray(' Cancel'));
+    const answer = (await ask(tui.displayPermissionPrompt('Execute this plan?'))).trim().toLowerCase();
 
     if (answer === '' || answer === 'y') {
       return 'BUILD';
@@ -370,13 +358,13 @@ function displayPlanSteps(steps: string[]) {
   console.log('');
 }
 
-async function editPlanSteps(steps: string[], currentMode: Mode, ask: (q: string, m?: Mode) => Promise<string>): Promise<string[]> {
+async function editPlanSteps(steps: string[], currentMode: Mode, ask: (q: string) => Promise<string>): Promise<string[]> {
   console.log(chalk.gray('Enter step number to edit, or press Enter to finish editing:'));
-  const numStr = await ask(chalk.bold('Step #: '), currentMode);
+  const numStr = await ask(chalk.bold('Step #: '));
   const n = parseInt(numStr.trim(), 10);
   if (!isNaN(n) && n >= 1 && n <= steps.length) {
     console.log(chalk.gray(`Current: ${steps[n - 1]}`));
-    const updated = await ask(chalk.bold('New text: '), currentMode);
+    const updated = await ask(chalk.bold('New text: '));
     if (updated.trim()) steps[n - 1] = updated.trim();
   }
   return steps;
@@ -470,12 +458,10 @@ async function buildModeLoop(
   console.log(
     chalk.gray('Options: ') +
       chalk.bold('[Enter]') +
-      chalk.gray(' Done  ') +
-      chalk.bold('[s]') +
-      chalk.gray(' Switch mode')
+      chalk.gray(' Done')
   );
-  const answer = (await ask(chalk.bold('> '), currentMode)).trim().toLowerCase();
-  if (answer === 's' || answer === 'switch') return 'switch';
+  const answer = (await ask(chalk.bold('> '))).trim().toLowerCase();
+  if (answer === '/switch' || answer === '/mode') return 'switch';
   return 'done';
 }
 
@@ -585,7 +571,7 @@ async function brainstormModeLoop(
       console.error(chalk.red('Error: ' + msg));
     }
 
-    const followUp = await ask(chalk.bold.blue('💬 You: '), currentMode);
+    const followUp = await ask(chalk.bold.blue('💬 You: '));
     const lower = followUp.trim().toLowerCase();
 
     if (lower === 'done' || lower === 'exit') return 'done';

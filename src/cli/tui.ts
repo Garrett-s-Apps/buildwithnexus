@@ -253,6 +253,27 @@ export class TUI {
     return colors.accent.bold(message) + colors.muted(' (y/n)  ');
   }
 
+  displayInputBox(mode: Mode): string {
+    const width = 60;
+    const innerWidth = width - 4;
+    const modeName = mode === 'PLAN' ? '📋 Planning' : mode === 'BUILD' ? '⚙️  Building' : '💡 Brainstorming';
+
+    // Top border
+    const top = colors.accent('┌' + '─'.repeat(innerWidth) + '┐');
+    // Bottom border with mode indicator
+    const bottom = colors.accent('└' + '─'.repeat(innerWidth) + '┘');
+    const modeDisplay = colors.muted(`Mode: ${modeName}`);
+
+    console.log(top);
+    // Input area will be typed here by readline
+    return colors.accent('│ ') + colors.muted('> ');
+  }
+
+  displayModeIndicator(mode: Mode): void {
+    const modeName = mode === 'PLAN' ? '📋 Planning' : mode === 'BUILD' ? '⚙️  Building' : '💡 Brainstorming';
+    console.log(colors.muted(`Mode: ${modeName}\n`));
+  }
+
   private padToWidth(text: string, targetWidth: number): string {
     const visibleWidth = stringWidth(text);
     const padding = Math.max(0, targetWidth - visibleWidth);

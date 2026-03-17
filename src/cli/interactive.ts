@@ -524,10 +524,17 @@ async function brainstormModeLoop(
         }
 
         let responseText = '';
+        let firstEvent = true;
 
         for await (const parsed of parseSSEStream(reader)) {
           const type = parsed.type;
           const data = parsed.data;
+
+          // Show thinking indicator on first event
+          if (firstEvent && type !== 'done' && type !== 'error') {
+            console.log(chalk.bold.blue('💭 Thinking...\n'));
+            firstEvent = false;
+          }
 
           if (type === 'done' || type === 'execution_complete' || type === 'final_result') {
             const summary = (data['summary'] as string) || (data['result'] as string) || '';
@@ -539,14 +546,20 @@ async function brainstormModeLoop(
             break;
           } else if (type === 'thought' || type === 'observation') {
             const content = (data['content'] as string) || '';
-            if (content) responseText += content + '\n';
+            if (content) {
+              console.log(chalk.gray('→ ' + content));
+              responseText += content + '\n';
+            }
           } else if (type === 'agent_response' || type === 'agent_result') {
             // Handle agent response events
             const content = (data['content'] as string) || (data['result'] as string) || '';
             if (content) responseText += content + '\n';
           } else if (type === 'action') {
             const content = (data['content'] as string) || '';
-            if (content) responseText += content + '\n';
+            if (content) {
+              console.log(chalk.cyan('⚙️  ' + content));
+              responseText += content + '\n';
+            }
           } else if (type === 'agent_working' || type === 'started') {
             // Skip intermediate agent_working and started events in brainstorm mode
           } else if (type !== 'plan') {
@@ -555,6 +568,7 @@ async function brainstormModeLoop(
             if (content) responseText += content + '\n';
           }
         }
+        console.log('');
 
         if (responseText.trim()) {
           tui.displayBrainstormResponse(responseText.trim());

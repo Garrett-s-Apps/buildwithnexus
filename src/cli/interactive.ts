@@ -480,8 +480,6 @@ async function brainstormModeLoop(
   let currentQuestion = task;
 
   while (true) {
-    console.log(chalk.bold.blue('💡 Thinking...'));
-
     try {
       const response = await fetch(`${backendUrl}/api/run`, {
         method: 'POST',

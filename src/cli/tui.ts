@@ -188,7 +188,6 @@ export class TUI {
     });
 
     console.log(parts.join(colors.muted('  •  ')));
-    console.log(colors.muted('[s] switch mode'));
     console.log('');
   }
 

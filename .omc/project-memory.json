@@ -136,8 +136,8 @@
   "hotPaths": [
     {
       "path": "src/cli/interactive.ts",
-      "accessCount": 143,
-      "lastAccessed": 1773728248772,
+      "accessCount": 149,
+      "lastAccessed": 1773728724730,
       "type": "file"
     },
     {

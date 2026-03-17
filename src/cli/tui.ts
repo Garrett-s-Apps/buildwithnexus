@@ -235,8 +235,6 @@ export class TUI {
 
   displayBrainstormResponse(response: string) {
     console.log('');
-    console.log(chalk.blue.bold('💡 Ideas & Analysis'));
-    console.log('');
 
     const lines = response.split('\n');
     for (const line of lines) {

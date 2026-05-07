@@ -2,139 +2,140 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { input } from "@inquirer/prompts";
 import { log } from "../ui/logger.js";
-import { createSpinner, succeed, fail } from "../ui/spinner.js";
-import { loadConfig } from "../core/secrets.js";
-import { isNexusRunning } from "../core/docker.js";
+import { buildRunPayload, checkServerHealth } from "../core/api.js";
+import { parseSSEStream } from "../core/sse-parser.js";
+import { startBackend } from "../core/docker.js";
 import { redact, redactError } from "../core/dlp.js";
-import { checkServerHealth } from "../core/api.js";
 
-const COS_PREFIX = chalk.bold.cyan("  Chief of Staff");
+const CPO_PREFIX = chalk.bold.cyan("  CPO");
 const YOU_PREFIX = chalk.bold.white("  You");
 const DIVIDER = chalk.dim("  " + "─".repeat(56));
 
-function formatResponse(text: string): string {
-  // Wrap long lines and indent under the CoS prefix
-  const lines = text.split("\n");
-  return lines
-    .map((line) => chalk.white("  " + line))
-    .join("\n");
+async function waitForBackend(backendUrl: string): Promise<boolean> {
+  for (let i = 0; i < 15; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    if (await checkServerHealth(backendUrl)) return true;
+  }
+  return false;
 }
 
-async function sendMessage(
-  httpPort: number,
+async function runBrainstormTurn(
+  backendUrl: string,
   message: string,
-  source: string,
 ): Promise<string> {
-  const res = await fetch(`http://localhost:${httpPort}/message`, {
+  const response = await fetch(`${backendUrl}/api/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, source }),
+    body: JSON.stringify(buildRunPayload(
+      message,
+      "brainstorm",
+      "Generate ideas, considerations, and suggestions. Be conversational and concise.",
+    )),
+    signal: AbortSignal.timeout(120000),
   });
 
-  if (!res.ok) {
-    throw new Error(`Server returned status ${res.status}`);
+  if (!response.ok) {
+    throw new Error(`Backend error: ${response.status}`);
   }
 
-  const text = await res.text();
-  try {
-    const parsed = JSON.parse(text);
-    return parsed.response ?? parsed.message ?? text;
-  } catch {
-    return text;
+  const { run_id } = (await response.json()) as { run_id: string };
+
+  const streamResponse = await fetch(`${backendUrl}/api/stream/${run_id}`, {
+    signal: AbortSignal.timeout(120000),
+  });
+
+  if (!streamResponse.ok) {
+    throw new Error(`Stream error: ${streamResponse.status}`);
   }
+
+  const reader = streamResponse.body?.getReader();
+  if (!reader) throw new Error("No response body");
+
+  let result = "";
+  for await (const parsed of parseSSEStream(reader)) {
+    const type = parsed.type;
+    const data = parsed.data as Record<string, string>;
+
+    if (type === "done" || type === "final_result") {
+      result = data["result"] || data["summary"] || result;
+      break;
+    } else if (type === "error") {
+      throw new Error(data["error"] || "Unknown error from backend");
+    } else if (type === "thinking") {
+      // silent — shown via spinner
+    } else {
+      const content = data["content"] || data["summary"] || "";
+      if (content) result += content;
+    }
+  }
+
+  return result;
 }
 
 export const brainstormCommand = new Command("brainstorm")
-  .description("Brainstorm an idea with the NEXUS Chief of Staff")
+  .description("Brainstorm an idea with the NEXUS CPO")
   .argument("[idea...]", "Your idea or question")
   .action(async (ideaWords: string[]) => {
+    const backendUrl = process.env.BACKEND_URL || "http://localhost:4200";
+
     try {
-      const config = loadConfig();
-      if (!config) {
-        log.error("No NEXUS configuration found. Run: buildwithnexus init");
-        process.exit(1);
+      // Ensure backend is running
+      if (!(await checkServerHealth(backendUrl))) {
+        log.step("Backend not running — starting...");
+        await startBackend();
+        const ready = await waitForBackend(backendUrl);
+        if (!ready) {
+          log.error("Backend failed to start. Run: buildwithnexus server");
+          process.exit(1);
+        }
       }
 
-      if (!(await isNexusRunning())) {
-        log.error("NEXUS is not running. Start it with: buildwithnexus start");
-        process.exit(1);
-      }
-
-      // Check server health
-      const spinner = createSpinner("Connecting to NEXUS...");
-      spinner.start();
-      const healthOk = await checkServerHealth(config.httpPort);
-      if (!healthOk) {
-        fail(spinner, "NEXUS server is not healthy");
-        log.warn("Check status: buildwithnexus status");
-        process.exit(1);
-      }
-      succeed(spinner, "Connected to NEXUS");
-
-      // Header
       console.log("");
       console.log(chalk.bold("  ╔══════════════════════════════════════════════════════════╗"));
       console.log(chalk.bold("  ║  ") + chalk.bold.cyan("NEXUS Brainstorm Session") + chalk.bold("                                ║"));
       console.log(chalk.bold("  ╠══════════════════════════════════════════════════════════╣"));
-      console.log(chalk.bold("  ║  ") + chalk.dim("The Chief of Staff will discuss your idea with the".padEnd(55)) + chalk.bold("║"));
-      console.log(chalk.bold("  ║  ") + chalk.dim("NEXUS team and share their recommendations.".padEnd(55)) + chalk.bold("║"));
-      console.log(chalk.bold("  ║  ") + chalk.dim("Type 'exit' or 'quit' to end the session.".padEnd(55)) + chalk.bold("║"));
+      console.log(chalk.bold("  ║  ") + chalk.dim("The CPO will discuss your idea and share".padEnd(55)) + chalk.bold("║"));
+      console.log(chalk.bold("  ║  ") + chalk.dim("recommendations. Type 'exit' to end.".padEnd(55)) + chalk.bold("║"));
       console.log(chalk.bold("  ╚══════════════════════════════════════════════════════════╝"));
       console.log("");
 
-      // Get initial idea
       let idea = ideaWords.length > 0 ? ideaWords.join(" ") : "";
       if (!idea) {
-        idea = await input({
-          message: "What would you like to brainstorm?",
-        });
+        idea = await input({ message: "What would you like to brainstorm?" });
         if (!idea.trim()) {
           log.warn("No idea provided");
           return;
         }
       }
 
-      // Conversation loop
-      let turn = 0;
-      let currentMessage = `[BRAINSTORM] The CEO wants to brainstorm the following idea. As Chief of Staff, discuss this with the relevant team members and report back with their recommendations. Be conversational, not formal. Idea: ${idea}`;
+      const conversationHistory: Array<{ role: "user" | "assistant"; content: string }> = [];
+      let currentQuestion = idea;
 
       while (true) {
-        turn++;
-
-        // Show what the user said
-        if (turn === 1) {
-          console.log(`${YOU_PREFIX}: ${chalk.white(idea)}`);
-        }
+        console.log(`${YOU_PREFIX}: ${chalk.white(currentQuestion)}`);
         console.log(DIVIDER);
 
-        // Send to NEXUS
-        const thinking = createSpinner(
-          turn === 1
-            ? "Chief of Staff is consulting the team..."
-            : "Chief of Staff is thinking...",
-        );
-        thinking.start();
+        const taskWithHistory = conversationHistory.length === 0
+          ? currentQuestion
+          : conversationHistory.map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n\n")
+            + `\n\nUser: ${currentQuestion}`;
 
-        const response = await sendMessage(
-          config.httpPort,
-          currentMessage,
-          "brainstorm",
-        );
+        process.stdout.write(chalk.dim("  CPO is thinking...\r"));
 
-        thinking.stop();
-        thinking.clear();
+        const responseText = await runBrainstormTurn(backendUrl, taskWithHistory);
+        const clean = redact(responseText.trim());
 
-        // Display response
-        console.log(`${COS_PREFIX}:`);
-        console.log(formatResponse(redact(response)));
+        process.stdout.write("                              \r");
+        console.log(`${CPO_PREFIX}:`);
+        clean.split("\n").forEach(line => console.log(chalk.white("  " + line)));
         console.log(DIVIDER);
 
-        // Prompt for follow-up
-        const followUp = await input({
-          message: chalk.bold("You:"),
-        });
+        conversationHistory.push({ role: "user", content: currentQuestion });
+        conversationHistory.push({ role: "assistant", content: clean });
 
+        const followUp = await input({ message: chalk.bold("You:") });
         const trimmed = followUp.trim().toLowerCase();
+
         if (!trimmed || trimmed === "exit" || trimmed === "quit" || trimmed === "q") {
           console.log("");
           log.success("Brainstorm session ended");
@@ -143,15 +144,10 @@ export const brainstormCommand = new Command("brainstorm")
           return;
         }
 
-        // Show follow-up
-        console.log(`${YOU_PREFIX}: ${chalk.white(followUp)}`);
-
-        // Continue conversation with context
-        currentMessage = `[BRAINSTORM FOLLOW-UP] The CEO responds: ${followUp}`;
+        currentQuestion = followUp.trim();
       }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ERR_USE_AFTER_CLOSE") {
-        // User pressed Ctrl+C during input
         console.log("");
         log.success("Brainstorm session ended");
         return;

@@ -14,7 +14,9 @@ const BUILD_KEYWORDS = [
 const BRAINSTORM_KEYWORDS = [
   'what', 'should', 'idea', 'ideas', 'think', 'consider', 'suggest',
   'brainstorm', 'explore', 'wonder', 'might', 'could', 'would', 'how about',
-  'what if', 'options', 'alternatives', 'thoughts',
+  'what if', 'options', 'alternatives', 'thoughts', 'why', 'advice',
+  'how can', 'how do', 'how should', 'best way', 'recommend', 'approach',
+  'improve', 'optimize', 'automate', 'help me',
 ];
 
 export function classifyIntent(task: string): Intent {
@@ -40,7 +42,7 @@ export function classifyIntent(task: string): Intent {
     return 'plan';
   }
 
-  if (brainstormScore > planScore && brainstormScore > buildScore) return 'brainstorm';
+  if (brainstormScore >= planScore && brainstormScore > buildScore) return 'brainstorm';
   if (buildScore > planScore && buildScore > brainstormScore) return 'build';
   if (planScore > 0) return 'plan';
 

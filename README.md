@@ -3,107 +3,118 @@
 [![npm version](https://img.shields.io/npm/v/buildwithnexus?style=flat-square&color=blue)](https://www.npmjs.com/package/buildwithnexus)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
-Launch an autonomous AI runtime with triple-nested VM isolation in one command.
-
-## What It Does
-
-One command bootstraps a complete NEXUS instance:
-
-- **QEMU VM** running Ubuntu 24.04 (auto-installed if missing)
-- **Docker** inside the VM for isolated CLI sessions
-- **KVM** inside the VM for inner virtual machines (triple nesting)
-- **NEXUS server** running on port 4200 with full agent orchestration
-- **Cloudflare tunnel** (optional) for remote access
-
-All isolation is mandatory — NEXUS refuses to start unless it detects proper nesting (VM + Docker + KVM).
+Interactive CLI for NEXUS — a 56-agent autonomous software engineering organization. Tell it what to build. It figures out the rest.
 
 ## Quick Start
 
 ```bash
-npx buildwithnexus init
+npm install -g buildwithnexus
+buildwithnexus
 ```
 
-This walks you through API key setup, VM resource allocation, and boots a fully provisioned NEXUS instance in ~10-25 minutes (first run). Subsequent starts take ~30 seconds.
+On first run you'll be prompted to set your Anthropic API key. Keys are stored in `~/.buildwithnexus/.env.keys`.
 
-## Requirements
+## What It Does
 
-- **Node.js** >= 18
-- ~4GB RAM and ~20GB disk available for the VM
-- An Anthropic API key
+Launch an interactive shell with three execution modes:
 
-### macOS (ARM or Intel)
+- **PLAN** — Break down your request into a reviewable step-by-step plan
+- **BUILD** — Execute directly with live agent streaming
+- **BRAINSTORM** — Free-form exploration with the NEXUS CPO streaming their reasoning
 
-QEMU is installed automatically via Homebrew. If Homebrew isn't installed, get it at [brew.sh](https://brew.sh).
-
-```bash
-npx buildwithnexus init
 ```
+╔════════════════════════════════════════════════════════════╗
+║        Nexus - Autonomous Agent Orchestration              ║
+║        v0.8.10                                              ║
+╚════════════════════════════════════════════════════════════╝
 
-### Linux (x64)
+📝 Task: Build a REST API for user authentication
 
-QEMU is installed automatically via apt. Requires `sudo` access for package installation.
-
-```bash
-npx buildwithnexus init
+Press Enter to use PLAN or choose a mode:
+  [1] PLAN   design & break down steps
+  [2] BUILD  execute with live streaming
+  [3] BRAINSTORM  free-form explore & Q&A
 ```
-
-### Windows (via WSL2)
-
-buildwithnexus requires WSL2 with an Ubuntu distribution. Native Windows is not supported.
-
-1. Install WSL2: `wsl --install -d Ubuntu`
-2. Open Ubuntu terminal
-3. Install Node.js: `curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs`
-4. Run: `npx buildwithnexus init`
-
-KVM nested virtualization must be enabled in your BIOS/UEFI settings.
 
 ## Commands
 
+### Core (Python backend required)
+
 | Command | Description |
 |---------|-------------|
-| `buildwithnexus init` | Full scaffolding + VM boot (10 phases) |
-| `buildwithnexus start` | Start an existing VM + server |
-| `buildwithnexus stop` | Graceful shutdown |
-| `buildwithnexus status` | VM / Docker / server / tunnel health |
-| `buildwithnexus doctor` | Diagnose QEMU, ports, SSH, disk |
-| `buildwithnexus logs [-f]` | Stream server logs |
-| `buildwithnexus update` | Upload latest release, rebuild, restart |
-| `buildwithnexus destroy [--force]` | Remove VM + all data |
-| `buildwithnexus keys set\|list` | Manage API keys |
-| `buildwithnexus ssh` | Direct SSH into the VM |
-| `buildwithnexus brainstorm [idea]` | Brainstorm an idea with the Chief of Staff |
+| `buildwithnexus` | Launch interactive shell (PLAN/BUILD/BRAINSTORM) |
+| `buildwithnexus da-init` | Set up API keys in `~/.buildwithnexus/.env.keys` |
+| `buildwithnexus run <task>` | Run a task directly via the backend |
+| `buildwithnexus brainstorm [idea]` | Brainstorm an idea with the NEXUS CPO |
+| `buildwithnexus server` | Start the NEXUS Python backend server |
+| `buildwithnexus da-status` | Check backend connectivity |
+| `buildwithnexus doctor` | Run diagnostics (backend health + environment) |
+| `buildwithnexus logs [-f]` | View server logs (stream with `-f`) |
+| `buildwithnexus keys list` | List configured API keys |
+| `buildwithnexus keys set <KEY_NAME>` | Set an API key |
+
+### Docker infrastructure (requires Docker + full NEXUS setup)
+
+| Command | Description |
+|---------|-------------|
+| `buildwithnexus 99 [instruction]` | AI pair-programming via full NEXUS engine |
+| `buildwithnexus start` | Start full NEXUS Docker services |
+| `buildwithnexus stop` | Stop NEXUS Docker services |
+| `buildwithnexus status [--json]` | Show Docker container health |
+| `buildwithnexus dashboard` | Open the NEXUS dashboard at `localhost:4200/dashboard` |
+| `buildwithnexus update` | Update to the latest version |
+| `buildwithnexus destroy [--force]` | Remove NEXUS and all data |
+| `buildwithnexus ssh` | Open SSH session into the sandbox |
 
 ## Architecture
 
 ```
-Host (your machine)
-  └─ QEMU VM (Ubuntu 24.04)
-       ├─ Docker (nexus-cli-sandbox)
-       ├─ KVM / libvirt (inner VMs)
-       └─ NEXUS server (:4200)
+buildwithnexus CLI (TypeScript/Node.js)
+         │
+         │ SSE streaming
+         ▼
+NEXUS Backend (Python FastAPI, port 4200)
+         │
+         ▼
+LangGraph Runtime → 56-agent organization
+  • CPO (Opus) — brainstorm + strategy
+  • VP Engineering → 19 eng agents
+  • Product Management → 2 agents
+  • QA Team → 7 agents
+  • Security Team → 3 agents
+  • ML & Data → 6 agents
+  • Salesforce → 10 agents
+  • Documentation → 2 agents
+  • Consultant → 1 agent
 ```
 
-Port forwarding: SSH `localhost:2222`, NEXUS `localhost:4200`, HTTPS `localhost:8443`.
+## Requirements
+
+- **Node.js** >= 18
+- **Anthropic API key** (`sk-ant-...`) from [console.anthropic.com](https://console.anthropic.com)
+- NEXUS backend running on `localhost:4200` (for PLAN/BUILD/BRAINSTORM modes)
+
+Optional:
+- OpenAI API key (o3 reasoning support)
+- Google API key (Gemini multimodal support)
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ANTHROPIC_API_KEY` | — | Overrides stored key |
+| `OPENAI_API_KEY` | — | Overrides stored key |
+| `GOOGLE_API_KEY` | — | Overrides stored key |
+| `BACKEND_URL` | `http://localhost:4200` | NEXUS backend address |
+| `NEXUS_BACKEND_DIR` | `~/Projects/nexus` | Path to NEXUS backend for auto-start |
 
 ## Security
 
-Built-in DLP (Data Loss Prevention) layer protects every data path — zero dependencies, zero configuration:
-
-- **Input Sanitization** — YAML escaping and `shellCommand` tagged templates prevent injection
-- **Output Redaction** — API keys auto-redacted from logs, errors, and stdout
-- **Secret Validation** — format + injection character checks on all API keys at input
-- **File Integrity** — HMAC-SHA256 tamper detection on `.env.keys`
-- **Audit Trail** — every sensitive operation logged to `~/.buildwithnexus/audit.log`
-- **Environment Scrubbing** — child processes (QEMU, Docker, SSH) never inherit secrets
-- **SSH TOFU** — host key pinned on first connect, verified on every subsequent connection
-- SSH key-only auth (ed25519, no passwords)
-- UFW firewall (deny all, allow 22/80/443/4200)
-- auditd enabled (SOC 2 compliance)
-- Docker hardened (no-new-privileges, log rotation, cap-drop ALL)
 - API keys stored in `~/.buildwithnexus/.env.keys` with `0600` permissions
-- All directories created with `0700` permissions
-- Nesting enforcement guard prevents running outside VM isolation
+- HMAC-SHA256 tamper detection on `.env.keys`
+- Input sanitization and output redaction via DLP layer
+- Backend URL validation before transmitting API keys
+- Audit trail at `~/.buildwithnexus/audit.log`
 
 ## Links
 

@@ -95,7 +95,9 @@ export const ninetyNineCommand = new Command("99")
       }
 
       if (!(await isNexusRunning())) {
-        log.error("NEXUS is not running. Start it with: buildwithnexus start");
+        log.error("NEXUS Docker engine is not running.");
+        log.warn("Start it with: buildwithnexus start");
+        log.warn("For task execution without Docker, use: buildwithnexus (interactive shell)");
         process.exit(1);
       }
 

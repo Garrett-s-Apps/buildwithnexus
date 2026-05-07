@@ -31,4 +31,28 @@ describe('classifyIntent', () => {
     // "what", "should", "ideas", "think" vs no build keywords
     expect(classifyIntent('what should we think about ideas and options')).toBe('brainstorm');
   });
+
+  it('classifies "how can I automate" as brainstorm', () => {
+    expect(classifyIntent('how can I automate this deployment process')).toBe('brainstorm');
+  });
+
+  it('classifies "best way to improve" as brainstorm', () => {
+    expect(classifyIntent("what's the best way to improve performance")).toBe('brainstorm');
+  });
+
+  it('classifies "advice on" as brainstorm', () => {
+    expect(classifyIntent('give me advice on logging strategies')).toBe('brainstorm');
+  });
+
+  it('classifies "why does" as brainstorm', () => {
+    expect(classifyIntent('why does this error keep happening')).toBe('brainstorm');
+  });
+
+  it('classifies "help me" as brainstorm', () => {
+    expect(classifyIntent('help me understand this architecture')).toBe('brainstorm');
+  });
+
+  it('classifies "recommend an approach" as brainstorm', () => {
+    expect(classifyIntent('recommend an approach for authentication')).toBe('brainstorm');
+  });
 });

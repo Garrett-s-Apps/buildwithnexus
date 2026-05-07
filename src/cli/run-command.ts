@@ -61,14 +61,15 @@ export async function runCommand(
 
       for await (const parsed of parseSSEStream(reader)) {
         const type = parsed.type;
-        const eventContent = (parsed.data['content'] as string) || '';
+        const data = parsed.data as Record<string, string>;
+        const eventContent = data['content'] || data['result'] || data['task'] || '';
 
         if (type === 'done') {
-          tui.displayEvent(type, { content: 'Task completed successfully' });
+          tui.displayEvent(type, { content: eventContent || 'Task completed successfully' });
           tui.displayComplete(tui.getElapsedTime());
           process.exit(0);
         } else if (type === 'error') {
-          tui.displayError(eventContent);
+          tui.displayError(data['error'] || eventContent || 'Unknown error');
           process.exit(1);
         } else {
           tui.displayEvent(type, { content: eventContent });

@@ -77,13 +77,14 @@ jobs:
         working-directory: nexus
         run: |
           set -e
-          echo "Verifying retired/deprecated model IDs are NOT present in the source we're about to bundle..."
-          if grep -rn 'claude-3-5-haiku-20241022' src/ ; then
-            echo "::error::Retired model claude-3-5-haiku-20241022 found in nexus source. Refusing to publish."
+          echo "Verifying retired/deprecated model IDs are NOT present in non-comment source lines..."
+          # grep exit 0 = found match; we pipe through grep -v to strip comment-only lines
+          if grep -rn 'claude-3-5-haiku-20241022' src/ | grep -v ':[[:space:]]*#'; then
+            echo "::error::Retired model claude-3-5-haiku-20241022 found in nexus source code. Refusing to publish."
             exit 1
           fi
-          if grep -rn 'claude-sonnet-4-20250514\|claude-opus-4-20250514' src/ ; then
-            echo "::error::Deprecated dated alias found in nexus source. Refusing to publish."
+          if grep -rn 'claude-sonnet-4-20250514\|claude-opus-4-20250514' src/ | grep -v ':[[:space:]]*#'; then
+            echo "::error::Deprecated dated alias found in nexus source code. Refusing to publish."
             exit 1
           fi
           echo "✓ No retired/deprecated model IDs in the bundled Python source."
@@ -99,9 +100,11 @@ jobs:
         if: always()
         working-directory: buildwithnexus
         run: |
+          pkg_name=$(node -e 'console.log(require("./package.json").name)')
+          pkg_version=$(node -e 'console.log(require("./package.json").version)')
           echo "### Publish summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Package: \`$(node -p \"require('./package.json').name\")\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Version: \`$(node -p \"require('./package.json').version\")\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Package: \`$pkg_name\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: \`$pkg_version\`" >> $GITHUB_STEP_SUMMARY
           echo "- Nexus ref bundled: \`${{ github.event.inputs.nexus_ref || 'main' }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Tarball: \`dist/nexus-release.tar.gz\`" >> $GITHUB_STEP_SUMMARY

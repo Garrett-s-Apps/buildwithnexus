@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { log } from "../ui/logger.js";
 import { detectPlatform } from "../core/platform.js";
 import { isDockerInstalled } from "../core/docker.js";
-import { NEXUS_HOME, loadConfig } from "../core/secrets.js";
+import { NEXUS_HOME, loadConfig, getBackendUrl } from "../core/secrets.js";
 import path from "node:path";
 import { execa } from "execa";
 
@@ -59,10 +59,25 @@ export const doctorCommand = new Command("doctor")
       }
     }
 
-    console.log("");
-    if (dockerOk) {
-      log.success("Environment ready for NEXUS");
-    } else {
-      log.warn("Docker is required — install it from https://docs.docker.com/get-docker/");
+    // Deep agents backend (primary server)
+    const backendUrl = getBackendUrl();
+    try {
+      const res = await fetch(`${backendUrl}/health`, { signal: AbortSignal.timeout(3000) });
+      const backendOk = res.ok;
+      console.log(`  ${check(backendOk)}  NEXUS backend at ${backendUrl} ${backendOk ? "" : chalk.yellow("(not running — start with: buildwithnexus server)")}`);
+    } catch {
+      console.log(`  ${check(false)}  NEXUS backend at ${backendUrl} ${chalk.yellow("(not running — start with: buildwithnexus server)")}`);
     }
+
+    // Python / uv
+    try {
+      const { stdout: pyVersion } = await execa("python3", ["--version"]);
+      const pyOk = !!pyVersion;
+      console.log(`  ${check(pyOk)}  ${pyVersion}`);
+    } catch {
+      console.log(`  ${check(false)}  python3 not found (required for NEXUS backend)`);
+    }
+
+    console.log("");
+    log.success("Diagnostics complete");
   });

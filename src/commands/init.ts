@@ -23,6 +23,7 @@ import {
 } from "../core/docker.js";
 import { installCloudflared, startTunnel } from "../core/tunnel.js";
 import { redactError, validateAllKeys } from "../core/dlp.js";
+import { findFreePort } from "../core/port.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -77,9 +78,13 @@ const phases: Phase[] = [
       ensureHome();
 
       const masterSecret = generateMasterSecret();
+      const httpPort = await findFreePort(4200, 4300);
+      if (httpPort !== 4200) {
+        log.detail("Port", `4200 in use — using ${httpPort}`);
+      }
       const config: NexusConfig = {
         enableTunnel: userConfig.enableTunnel,
-        httpPort: 4200,
+        httpPort,
         httpsPort: 8443,
         masterSecret,
       };

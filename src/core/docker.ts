@@ -466,7 +466,7 @@ export async function startNexus(
       "-e",
       `OPENAI_API_KEY=${keys.openai}`,
       "-p",
-      `${config.port}:${config.port}`,
+      `${config.port}:4200`,
       "buildwithnexus/nexus:latest",
     ]);
     log.success(`NEXUS container started on port ${config.port}`);
@@ -501,22 +501,33 @@ export async function dockerExec(command: string): Promise<{ stdout: string; std
  * Start the Nexus Python backend server as a detached background process.
  * The backend is expected to listen on port 4200 (or BACKEND_URL).
  */
+export function getBackendLogPath(): string {
+  const home = process.env.HOME || process.env.USERPROFILE || "~";
+  return `${home}/.buildwithnexus/nexus-server.log`;
+}
+
 export async function startBackend(): Promise<void> {
   const { spawn } = await import("node:child_process");
+  const fs = await import("node:fs");
   const os = await import("node:os");
   const path = await import("node:path");
 
-  const nexusDir = path.join(os.homedir(), "Projects", "nexus");
+  const nexusDir = process.env.NEXUS_BACKEND_DIR ?? path.join(os.homedir(), "Projects", "nexus");
+  const logDir = path.join(os.homedir(), ".buildwithnexus");
+  fs.mkdirSync(logDir, { recursive: true });
+  const logFile = fs.openSync(path.join(logDir, "nexus-server.log"), "a");
+
   log.step(`Starting Nexus backend from ${nexusDir}...`);
 
   const child = spawn("python3", ["-m", "src.deep_agents_server"], {
     cwd: nexusDir,
     detached: true,
-    stdio: "ignore",
+    stdio: ["ignore", logFile, logFile],
     env: { ...process.env },
   });
 
   child.unref();
+  fs.closeSync(logFile);
   log.success("Nexus backend process started");
 }
 

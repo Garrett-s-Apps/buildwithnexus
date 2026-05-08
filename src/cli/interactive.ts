@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { tui, type Mode } from './tui.js';
 import { classifyIntent } from './intent-classifier.js';
 import { hasAnyKey, loadApiKeys, validateBackendUrl } from '../core/config.js';
-import { loadKeys } from '../core/secrets.js';
+import { loadKeys, getBackendUrl } from '../core/secrets.js';
 import { parseSSEStream } from '../core/sse-parser.js';
 import { startBackend } from '../core/docker.js';
 import { resolvedVersion } from '../core/version.js';
@@ -33,7 +33,7 @@ async function reportBackendError(label: string, response: Response): Promise<vo
 }
 
 export async function interactiveMode() {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
+  const backendUrl = getBackendUrl();
 
   // Validate backend URL security before transmitting API keys
   const urlCheck = validateBackendUrl(backendUrl);
@@ -79,10 +79,13 @@ export async function interactiveMode() {
 
   // Check backend health; auto-start if not running
   async function waitForBackend(): Promise<boolean> {
-    for (let i = 0; i < 5; i++) {
+    const maxAttempts = 15;
+    for (let i = 0; i < maxAttempts; i++) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       if (await checkServerHealth(backendUrl)) return true;
+      process.stdout.write(chalk.gray(`\r  Waiting for backend... ${i + 1}/${maxAttempts}`));
     }
+    process.stdout.write('\n');
     return false;
   }
 
@@ -91,7 +94,19 @@ export async function interactiveMode() {
     await startBackend();
     const ready = await waitForBackend();
     if (!ready) {
-      console.error(chalk.red('❌ Backend failed to start. Run: buildwithnexus server'));
+      console.error(chalk.red('❌ Backend failed to start.'));
+      const { getBackendLogPath } = await import('../core/docker.js');
+      const { existsSync, readFileSync } = await import('node:fs');
+      const logPath = getBackendLogPath();
+      if (existsSync(logPath)) {
+        const lines = readFileSync(logPath, 'utf-8').split('\n').filter(Boolean).slice(-8);
+        if (lines.length) {
+          console.error(chalk.dim('\n  Recent logs:'));
+          lines.forEach((l) => console.error(chalk.dim('  ' + l)));
+          console.error('');
+        }
+      }
+      console.error(chalk.yellow('  Run `buildwithnexus server` for full output.'));
       process.exit(1);
     }
   }
@@ -107,8 +122,8 @@ export async function interactiveMode() {
     });
 
   console.clear();
-  console.log(chalk.gray('Welcome! Describe what you want the AI agents to do.'));
-  console.log(chalk.gray('Type "exit" to quit.\n'));
+  printAppHeader();
+  console.log(chalk.gray('  Describe what you want to build. Type "exit" to quit.\n'));
 
   while (true) {
     const task = await ask(chalk.bold.blue('📝 Task: '));
@@ -321,6 +336,12 @@ async function planModeLoop(
           steps = (parsed.data['steps'] as string[]) || [];
           planReceived = true;
           reader.cancel();
+          // Abort the background execution — we only needed the plan steps
+          fetch(`${backendUrl}/api/interrupt`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ run_id, interrupt_type: 'abort' }),
+          }).catch(() => {});
           break;
         } else if (parsed.type === 'error') {
           const errorMsg = (parsed.data['error'] as string) || (parsed.data['content'] as string) || 'Unknown error';
@@ -525,14 +546,21 @@ async function brainstormModeLoop(
   console.log(chalk.gray('Ask follow-up questions. Type "done" to exit, "switch" to change mode.\n'));
 
   let currentQuestion = task;
+  const conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
   while (true) {
+    // Build task with full conversation history so the model has context
+    const taskWithHistory = conversationHistory.length === 0
+      ? currentQuestion
+      : conversationHistory.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')
+        + `\n\nUser: ${currentQuestion}`;
+
     try {
       const response = await fetch(`${backendUrl}/api/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildRunPayload(
-          currentQuestion,
+          taskWithHistory,
           'brainstorm',
           'Generate ideas, considerations, and suggestions. Be concise and helpful.',
         )),
@@ -613,8 +641,8 @@ async function brainstormModeLoop(
                 console.log(chalk.cyan('⚙️  ' + content));
                 responseText += content + '\n';
               }
-            } else if (type === 'agent_working' || type === 'started') {
-              // Skip intermediate agent_working and started events in brainstorm mode
+            } else if (type === 'thinking' || type === 'agent_working' || type === 'started') {
+              // Skip cosmetic/internal events — content not part of final response
             } else if (type !== 'plan') {
               // Catch-all for any other event types
               const content = (data['content'] as string) || (data['response'] as string) || '';
@@ -628,6 +656,8 @@ async function brainstormModeLoop(
 
         if (responseText.trim()) {
           tui.displayBrainstormResponse(responseText.trim());
+          conversationHistory.push({ role: 'user', content: currentQuestion });
+          conversationHistory.push({ role: 'assistant', content: responseText.trim() });
         } else {
           console.log(chalk.gray('(No response received from agent — check `buildwithnexus logs -f`)'));
         }

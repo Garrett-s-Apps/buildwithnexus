@@ -5,7 +5,7 @@ import { redact } from "./dlp.js";
 
 // Agent role color map
 const ROLE_COLORS: Record<string, (text: string) => string> = {
-  "Chief of Staff": chalk.bold.cyan,
+  "CPO": chalk.bold.cyan,
   "VP Engineering": chalk.bold.blue,
   "VP Product": chalk.bold.magenta,
   "Senior Engineer": chalk.bold.green,

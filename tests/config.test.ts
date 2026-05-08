@@ -198,3 +198,32 @@ describe("reloadEnv", () => {
     expect(process.env.ANTHROPIC_API_KEY).toBe("overridden-value");
   });
 });
+
+describe("validateBackendUrl", () => {
+  it("allows localhost over HTTP", async () => {
+    const { validateBackendUrl } = await import("../src/core/config.js");
+    expect(validateBackendUrl("http://localhost:4200").valid).toBe(true);
+  });
+
+  it("allows 127.0.0.1 over HTTP", async () => {
+    const { validateBackendUrl } = await import("../src/core/config.js");
+    expect(validateBackendUrl("http://127.0.0.1:4200").valid).toBe(true);
+  });
+
+  it("allows any host over HTTPS", async () => {
+    const { validateBackendUrl } = await import("../src/core/config.js");
+    expect(validateBackendUrl("https://my-server.example.com").valid).toBe(true);
+  });
+
+  it("rejects non-localhost HTTP (API key would be plaintext)", async () => {
+    const { validateBackendUrl } = await import("../src/core/config.js");
+    const result = validateBackendUrl("http://remote-host.example.com:4200");
+    expect(result.valid).toBe(false);
+    expect(result.error).toMatch(/not localhost.*not HTTPS/i);
+  });
+
+  it("rejects malformed URLs", async () => {
+    const { validateBackendUrl } = await import("../src/core/config.js");
+    expect(validateBackendUrl("not-a-url").valid).toBe(false);
+  });
+});

@@ -14,7 +14,7 @@ keysCommand
   .action(() => {
     const keys = loadKeys();
     if (!keys) {
-      log.error("No keys configured. Run: buildwithnexus init");
+      log.error("No keys configured. Run: buildwithnexus da-init");
       process.exit(1);
     }
 
@@ -33,7 +33,7 @@ keysCommand
   .action(async (keyName: string) => {
     const keys = loadKeys();
     if (!keys) {
-      log.error("No keys configured. Run: buildwithnexus init");
+      log.error("No keys configured. Run: buildwithnexus da-init");
       process.exit(1);
     }
 
@@ -72,5 +72,5 @@ keysCommand
     saveKeys(keys);
     audit("keys_saved", `${upper} updated via CLI`);
     log.success(`${upper} updated`);
-    log.warn("Restart the runtime for changes to take effect: buildwithnexus stop && buildwithnexus start");
+    log.warn("Restart the backend for changes to take effect: buildwithnexus server");
   });

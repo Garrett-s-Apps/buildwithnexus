@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const packageJson = JSON.parse(readFileSync("package.json", "utf-8"));
 
 export default defineConfig({
-  entry: ["src/bin.ts", "src/deep-agents-bin.ts"],
+  entry: ["src/bin.ts"],
   format: ["esm"],
   target: "node18",
   outDir: "dist",

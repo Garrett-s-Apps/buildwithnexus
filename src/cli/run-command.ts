@@ -3,12 +3,13 @@ import { tui } from './tui.js';
 import { validateBackendUrl } from '../core/config.js';
 import { buildRunPayload, checkServerHealth } from '../core/api.js';
 import { parseSSEStream } from '../core/sse-parser.js';
+import { getBackendUrl } from '../core/secrets.js';
 
 export async function runCommand(
   task: string,
   options: { agent: string; goal?: string; model: string }
 ) {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
+  const backendUrl = getBackendUrl();
 
   // Validate backend URL security before transmitting API keys
   const urlCheck = validateBackendUrl(backendUrl);
@@ -62,7 +63,7 @@ export async function runCommand(
       for await (const parsed of parseSSEStream(reader)) {
         const type = parsed.type;
         const data = parsed.data as Record<string, string>;
-        const eventContent = data['content'] || data['result'] || data['task'] || '';
+        const eventContent = data['content'] || data['summary'] || data['result'] || data['task'] || '';
 
         if (type === 'done') {
           tui.displayEvent(type, { content: eventContent || 'Task completed successfully' });

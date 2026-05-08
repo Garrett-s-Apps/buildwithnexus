@@ -22,13 +22,30 @@ import { shellCommand } from './commands/shell.js';
 import { checkForUpdates } from './core/update-notifier.js';
 import { MODELS } from './core/models.js';
 import { resolvedVersion } from './core/version.js';
+import { loadKeys } from './core/secrets.js';
 import dotenv from 'dotenv';
 import os from 'os';
 import path from 'path';
 
-// Load .env.local from home directory (works from any working directory)
+// Load .env.local from home directory (legacy fallback)
 const homeEnvPath = path.join(os.homedir(), '.env.local');
 dotenv.config({ path: homeEnvPath });
+
+// Load from ~/.buildwithnexus/.env.keys (written by da-init / init commands)
+// Only set env vars that aren't already set (env > .env.local > .env.keys priority)
+try {
+  const storedKeys = loadKeys();
+  if (storedKeys) {
+    if (!process.env.ANTHROPIC_API_KEY && storedKeys.ANTHROPIC_API_KEY)
+      process.env.ANTHROPIC_API_KEY = storedKeys.ANTHROPIC_API_KEY;
+    if (!process.env.OPENAI_API_KEY && storedKeys.OPENAI_API_KEY)
+      process.env.OPENAI_API_KEY = storedKeys.OPENAI_API_KEY;
+    if (!process.env.GOOGLE_API_KEY && storedKeys.GOOGLE_API_KEY)
+      process.env.GOOGLE_API_KEY = storedKeys.GOOGLE_API_KEY;
+  }
+} catch {
+  // Keys file missing or tampered — run-command will surface a clear error
+}
 
 export const version = resolvedVersion;
 
@@ -42,7 +59,7 @@ program
 // Nexus init command (setup API keys)
 program
   .command('da-init')
-  .description('Initialize Nexus (set up API keys and .env.local)')
+  .description('Initialize Nexus (set up API keys in ~/.buildwithnexus/.env.keys)')
   .action(deepAgentsInitCommand);
 
 // Run command
@@ -57,20 +74,45 @@ program
 // Dashboard command
 program
   .command('dashboard')
-  .description('Start the Nexus dashboard server')
-  .option('-p, --port <port>', 'Dashboard port', '4201')
+  .description('Open the Nexus dashboard (served by the backend at /dashboard)')
   .action(dashboardCommand);
 
-// Server command
+// Server command — runs in the foreground so Ctrl+C kills the Python process
 program
   .command('server')
   .description('Start the Nexus backend server')
   .action(async () => {
-    const { startBackend } = await import('./core/docker.js');
-    await startBackend();
+    const { spawn } = await import('node:child_process');
+    const os = await import('node:os');
+    const path = await import('node:path');
     const chalk = (await import('chalk')).default;
-    console.log(chalk.green('Backend server started. Press Ctrl+C to stop.'));
-    await new Promise(() => {}); // Keep process alive
+
+    const nexusDir = process.env.NEXUS_BACKEND_DIR ?? path.join(os.homedir(), 'Projects', 'nexus');
+    console.log(chalk.dim(`  Starting backend from ${nexusDir}...`));
+    console.log(chalk.dim('  Press Ctrl+C to stop.\n'));
+
+    const child = spawn('python3', ['-m', 'src.deep_agents_server'], {
+      cwd: nexusDir,
+      stdio: 'inherit',
+      env: { ...process.env },
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      child.on('exit', (code) => {
+        if (code !== 0 && code !== null) {
+          reject(new Error(`Backend exited with code ${code}`));
+        } else {
+          resolve();
+        }
+      });
+      child.on('error', (err) => {
+        reject(new Error(
+          `Failed to start backend: ${err.message}\n` +
+          `  Ensure Python 3 and NEXUS backend are at: ${nexusDir}\n` +
+          `  Or set NEXUS_BACKEND_DIR to override the path.`
+        ));
+      });
+    });
   });
 
 // Status command
@@ -78,20 +120,29 @@ program
   .command('da-status')
   .description('Check Nexus backend status')
   .action(async () => {
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
+    const chalk = (await import('chalk')).default;
+    const { getBackendUrl } = await import('./core/secrets.js');
+    const backendUrl = getBackendUrl();
+    const check = (ok: boolean) => (ok ? chalk.green('●') : chalk.red('○'));
+
     try {
-      const response = await fetch(`${backendUrl}/health`);
-      if (response.ok) {
-        console.log('Backend: Running');
-        console.log(`   URL: ${backendUrl}`);
+      const res = await fetch(`${backendUrl}/health`, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        console.log('');
+        console.log(`  ${check(true)}  Backend    ${chalk.green('healthy')} ${chalk.dim(backendUrl)}`);
+        console.log('');
+        console.log(chalk.green('  NEXUS backend is running'));
       } else {
-        console.log('Backend: Not responding (status ' + response.status + ')');
+        console.log('');
+        console.log(`  ${check(false)}  Backend    ${chalk.red(`not healthy (HTTP ${res.status})`)} ${chalk.dim(backendUrl)}`);
+        console.log('');
+        console.log(chalk.red('  Backend returned an error. Check logs: buildwithnexus logs'));
       }
     } catch {
-      console.log('Backend: Not accessible');
-      console.log(`   URL: ${backendUrl}`);
-      console.log('\n   Start backend with:');
-      console.log('   cd ~/Projects/nexus && python -m src.deep_agents_server');
+      console.log('');
+      console.log(`  ${check(false)}  Backend    ${chalk.red('offline')} ${chalk.dim(backendUrl)}`);
+      console.log('');
+      console.log(chalk.yellow('  Start backend with: buildwithnexus server'));
     }
   });
 

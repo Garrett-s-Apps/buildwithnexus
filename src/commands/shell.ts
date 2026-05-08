@@ -165,7 +165,7 @@ export const shellCommand = new Command("shell")
           thinkingSpinner.stop();
           thinkingSpinner.clear();
           console.log("");
-          console.log(chalk.bold.cyan("  Chief of Staff:"));
+          console.log(chalk.bold.cyan("  CPO:"));
           const lines = redact(response).split("\n");
           for (const line of lines) {
             console.log(chalk.white("  " + line));
@@ -181,13 +181,13 @@ export const shellCommand = new Command("shell")
       // Register slash commands
       repl.registerCommand({
         name: "brainstorm",
-        description: "Brainstorm with the full NEXUS org (led by Chief of Staff)",
+        description: "Brainstorm with the full NEXUS org (led by CPO)",
         handler: async () => {
           console.log("");
           console.log(chalk.bold("  ╔══════════════════════════════════════════════════════════╗"));
           console.log(chalk.bold("  ║  ") + chalk.bold.cyan("NEXUS Brainstorm Session") + chalk.bold("                                ║"));
           console.log(chalk.bold("  ╠══════════════════════════════════════════════════════════╣"));
-          console.log(chalk.bold("  ║  ") + chalk.dim("The Chief of Staff will facilitate a discussion with".padEnd(55)) + chalk.bold("║"));
+          console.log(chalk.bold("  ║  ") + chalk.dim("The CPO will facilitate a discussion with".padEnd(55)) + chalk.bold("║"));
           console.log(chalk.bold("  ║  ") + chalk.dim("the full NEXUS org to refine your idea. When ready,".padEnd(55)) + chalk.bold("║"));
           console.log(chalk.bold("  ║  ") + chalk.dim("NEXUS will draft an execution plan for your review.".padEnd(55)) + chalk.bold("║"));
           console.log(chalk.bold("  ║  ") + chalk.dim("Type 'exit' to end brainstorm. Type 'plan' to hand off.".padEnd(55)) + chalk.bold("║"));
@@ -198,7 +198,7 @@ export const shellCommand = new Command("shell")
           const idea = await input({ message: "What would you like to brainstorm?" });
           if (!idea.trim()) return;
 
-          let currentMessage = `[BRAINSTORM] The CEO wants to brainstorm the following idea. As Chief of Staff, facilitate a discussion with the entire NEXUS organization — involve VPs, engineers, QA, security, and any relevant specialists. Gather diverse perspectives, identify risks and opportunities, and help refine the idea. Do NOT execute — only discuss, analyze, and recommend. Idea: ${idea}`;
+          let currentMessage = `[BRAINSTORM] The CEO wants to brainstorm the following idea. As CPO, facilitate a discussion with the entire NEXUS organization — involve VPs, engineers, QA, security, and any relevant specialists. Gather diverse perspectives, identify risks and opportunities, and help refine the idea. Do NOT execute — only discuss, analyze, and recommend. Idea: ${idea}`;
 
           while (true) {
             const brainstormSpinner = createSpinner("NEXUS team is discussing...");
@@ -207,7 +207,7 @@ export const shellCommand = new Command("shell")
             brainstormSpinner.stop();
             brainstormSpinner.clear();
             console.log("");
-            console.log(chalk.bold.cyan("  Chief of Staff:"));
+            console.log(chalk.bold.cyan("  CPO:"));
             for (const line of redact(response).split("\n")) {
               console.log(chalk.white("  " + line));
             }
@@ -308,18 +308,24 @@ export const shellCommand = new Command("shell")
           console.log(chalk.bold("  NEXUS Organizational Hierarchy"));
           console.log(chalk.dim("  ─────────────────────────────────────────────────"));
           console.log(`  ${chalk.bold.white("You")} ${chalk.dim("(CEO)")}`);
-          console.log(`  └── ${chalk.bold.cyan("Chief of Staff")} ${chalk.dim("— orchestrates all work, your direct interface")}`);
-          console.log(`      ├── ${chalk.bold.blue("VP Engineering")} ${chalk.dim("— owns technical execution")}`);
-          console.log(`      │   ├── ${chalk.green("Senior Engineer")} ${chalk.dim("× 8 — implementation, refactoring")}`);
-          console.log(`      │   ├── ${chalk.green("Engineer")} ${chalk.dim("× 12 — feature work, bug fixes")}`);
-          console.log(`      │   └── ${chalk.hex("#FF8C00")("DevOps Engineer")} ${chalk.dim("× 4 — CI/CD, Docker, infra")}`);
-          console.log(`      ├── ${chalk.bold.magenta("VP Product")} ${chalk.dim("— owns roadmap and priorities")}`);
-          console.log(`      │   ├── ${chalk.magenta("Product Manager")} ${chalk.dim("× 3 — specs, requirements")}`);
-          console.log(`      │   └── ${chalk.magenta("Designer")} ${chalk.dim("× 2 — UI/UX, prototyping")}`);
-          console.log(`      ├── ${chalk.bold.yellow("QA Lead")} ${chalk.dim("— owns quality assurance")}`);
-          console.log(`      │   └── ${chalk.yellow("QA Engineer")} ${chalk.dim("× 6 — testing, coverage, validation")}`);
-          console.log(`      ├── ${chalk.bold.red("Security Engineer")} ${chalk.dim("× 4 — auth, scanning, compliance")}`);
-          console.log(`      └── ${chalk.bold.white("Knowledge Manager")} ${chalk.dim("— RAG, documentation, learning")}`);
+          console.log(`  └── ${chalk.bold.cyan("CPO")} ${chalk.dim("— product strategy, your direct interface")}`);
+          console.log(`      ├── ${chalk.bold.blue("VP Engineering")} ${chalk.dim("— owns technical execution (19 agents)")}`);
+          console.log(`      │   ├── ${chalk.green("Senior Engineer")} ${chalk.dim("× 3 — implementation, refactoring")}`);
+          console.log(`      │   ├── ${chalk.green("Tech Lead / Chief Architect / Eng Lead")} ${chalk.dim("— architecture & planning")}`);
+          console.log(`      │   ├── ${chalk.green("Engineering Manager")} ${chalk.dim("× 3 — team coordination")}`);
+          console.log(`      │   ├── ${chalk.green("Code Review Lead + 2 Reviewers")} ${chalk.dim("— quality gates")}`);
+          console.log(`      │   ├── ${chalk.green("Sr Frontend Engineer")} ${chalk.dim("× 2 — React, TypeScript, UI")}`);
+          console.log(`      │   ├── ${chalk.green("Sr Backend Engineer")} ${chalk.dim("× 2 — APIs, databases, server")}`);
+          console.log(`      │   ├── ${chalk.hex("#FF8C00")("DevOps Engineer")} ${chalk.dim("× 2 — CI/CD, Docker, infra")}`);
+          console.log(`      │   └── ${chalk.magenta("UX Consultant")} ${chalk.dim("× 1 — UI/UX")}`);
+          console.log(`      ├── ${chalk.bold.magenta("VP Product")} ${chalk.dim("— roadmap and priorities")}`);
+          console.log(`      ├── ${chalk.bold.yellow("QA Lead")} ${chalk.dim("— owns quality assurance (7 agents)")}`);
+          console.log(`      │   └── ${chalk.yellow("Test Engineer")} ${chalk.dim("× 6 — frontend, backend, integration, perf, a11y, security")}`);
+          console.log(`      ├── ${chalk.bold.red("Security")} ${chalk.dim("— CISO + Consultant + Engineer (3 total)")}`);
+          console.log(`      ├── ${chalk.bold.white("ML & Data")} ${chalk.dim("— 6 specialists — RAG, embeddings, routing")}`);
+          console.log(`      ├── ${chalk.bold.hex("#9B59B6")("Salesforce")} ${chalk.dim("— 10 architects, developers, admins")}`);
+          console.log(`      ├── ${chalk.bold.white("Documentation")} ${chalk.dim("— 2 writers")}`);
+          console.log(`      └── ${chalk.bold.white("Executive Consultant")} ${chalk.dim("— pitch decks, board presentations")}`);
           console.log("");
           console.log(chalk.dim("  56 agents total · Self-learning ML pipeline"));
           console.log(chalk.dim("  Full details: https://buildwithnexus.dev/overview"));
@@ -346,9 +352,9 @@ export const shellCommand = new Command("shell")
               title: "Welcome to NEXUS",
               content: [
                 "NEXUS is a 56-agent autonomous engineering organization.",
-                "You are the CEO. The Chief of Staff leads your team.",
+                "You are the CEO. The CPO leads your team.",
                 "",
-                "When you type a request, the Chief of Staff:",
+                "When you type a request, the CPO:",
                 "  1. Analyzes what needs to be done",
                 "  2. Delegates to the right VPs and specialists",
                 "  3. Agents collaborate, review each other's work",
@@ -358,13 +364,13 @@ export const shellCommand = new Command("shell")
             {
               title: "The Org Chart",
               content: [
-                "You → Chief of Staff → VPs → Engineers",
+                "You → CPO → VPs → Engineers",
                 "",
-                "  VP Engineering  — 24 engineers, DevOps",
-                "  VP Product      — PMs, designers",
-                "  QA Lead         — 6 QA engineers",
-                "  Security        — 4 security engineers",
-                "  Knowledge       — RAG, documentation",
+                "  VP Engineering  — 19 engineers, architects, DevOps",
+                "  VP Product      — roadmap and priorities",
+                "  QA Lead         — 6 test engineers",
+                "  Security        — 3 security specialists",
+                "  ML & Data       — 6 ML/data specialists",
                 "",
                 "Run /org-chart to see the full hierarchy.",
               ],
@@ -387,7 +393,7 @@ export const shellCommand = new Command("shell")
               content: [
                 "Use /brainstorm to explore ideas before committing.",
                 "",
-                "The Chief of Staff facilitates an org-wide discussion:",
+                "The CPO facilitates an org-wide discussion:",
                 "  - Engineers assess technical feasibility",
                 "  - Security flags risks",
                 "  - Product suggests user impact",

@@ -37,9 +37,12 @@ jobs:
       contents: write   # version-bump commit/tag push, GitHub Release upload
       id-token: write   # npm provenance via OIDC (SLSA-style attestation)
       attestations: write  # GitHub artifact attestations
-    environment:
-      name: npm-publish
-      url: https://www.npmjs.com/package/buildwithnexus
+    # NOTE: GitHub Environment 'npm-publish' should be created in repo settings
+    # to gate publishes behind manual approval. Omitted from this initial commit
+    # so the first hardened publish doesn't block on env creation. Add back as:
+    #   environment:
+    #     name: npm-publish
+    #     url: https://www.npmjs.com/package/buildwithnexus
 
     steps:
       - name: Harden runner

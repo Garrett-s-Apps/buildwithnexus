@@ -466,7 +466,7 @@ export async function startNexus(
       "-e",
       `OPENAI_API_KEY=${keys.openai}`,
       "-p",
-      `${config.port}:${config.port}`,
+      `${config.port}:4200`,
       "buildwithnexus/nexus:latest",
     ]);
     log.success(`NEXUS container started on port ${config.port}`);

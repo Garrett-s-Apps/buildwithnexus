@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { log } from "../ui/logger.js";
 import { detectPlatform } from "../core/platform.js";
 import { isDockerInstalled } from "../core/docker.js";
-import { NEXUS_HOME, loadConfig } from "../core/secrets.js";
+import { NEXUS_HOME, loadConfig, getBackendUrl } from "../core/secrets.js";
 import path from "node:path";
 import { execa } from "execa";
 
@@ -60,7 +60,7 @@ export const doctorCommand = new Command("doctor")
     }
 
     // Deep agents backend (primary server)
-    const backendUrl = process.env.BACKEND_URL || "http://localhost:4200";
+    const backendUrl = getBackendUrl();
     try {
       const res = await fetch(`${backendUrl}/health`, { signal: AbortSignal.timeout(3000) });
       const backendOk = res.ok;

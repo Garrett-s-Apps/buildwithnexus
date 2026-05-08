@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { tui, type Mode } from './tui.js';
 import { classifyIntent } from './intent-classifier.js';
 import { hasAnyKey, loadApiKeys, validateBackendUrl } from '../core/config.js';
-import { loadKeys } from '../core/secrets.js';
+import { loadKeys, getBackendUrl } from '../core/secrets.js';
 import { parseSSEStream } from '../core/sse-parser.js';
 import { startBackend } from '../core/docker.js';
 import { resolvedVersion } from '../core/version.js';
@@ -33,7 +33,7 @@ async function reportBackendError(label: string, response: Response): Promise<vo
 }
 
 export async function interactiveMode() {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
+  const backendUrl = getBackendUrl();
 
   // Validate backend URL security before transmitting API keys
   const urlCheck = validateBackendUrl(backendUrl);

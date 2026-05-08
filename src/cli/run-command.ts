@@ -3,12 +3,13 @@ import { tui } from './tui.js';
 import { validateBackendUrl } from '../core/config.js';
 import { buildRunPayload, checkServerHealth } from '../core/api.js';
 import { parseSSEStream } from '../core/sse-parser.js';
+import { getBackendUrl } from '../core/secrets.js';
 
 export async function runCommand(
   task: string,
   options: { agent: string; goal?: string; model: string }
 ) {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
+  const backendUrl = getBackendUrl();
 
   // Validate backend URL security before transmitting API keys
   const urlCheck = validateBackendUrl(backendUrl);

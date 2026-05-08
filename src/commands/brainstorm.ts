@@ -6,6 +6,7 @@ import { buildRunPayload, checkServerHealth } from "../core/api.js";
 import { parseSSEStream } from "../core/sse-parser.js";
 import { startBackend } from "../core/docker.js";
 import { redact, redactError } from "../core/dlp.js";
+import { getBackendUrl } from "../core/secrets.js";
 
 const CPO_PREFIX = chalk.bold.cyan("  CPO");
 const YOU_PREFIX = chalk.bold.white("  You");
@@ -76,7 +77,7 @@ export const brainstormCommand = new Command("brainstorm")
   .description("Brainstorm an idea with the NEXUS CPO")
   .argument("[idea...]", "Your idea or question")
   .action(async (ideaWords: string[]) => {
-    const backendUrl = process.env.BACKEND_URL || "http://localhost:4200";
+    const backendUrl = getBackendUrl();
 
     try {
       // Ensure backend is running

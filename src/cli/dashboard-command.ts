@@ -1,8 +1,9 @@
 import chalk from 'chalk';
 import { checkServerHealth } from '../core/api.js';
+import { getBackendUrl } from '../core/secrets.js';
 
 export async function dashboardCommand() {
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
+  const backendUrl = getBackendUrl();
   const dashboardUrl = `${backendUrl}/dashboard`;
 
   const healthy = await checkServerHealth(backendUrl);

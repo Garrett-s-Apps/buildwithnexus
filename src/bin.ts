@@ -121,7 +121,8 @@ program
   .description('Check Nexus backend status')
   .action(async () => {
     const chalk = (await import('chalk')).default;
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:4200';
+    const { getBackendUrl } = await import('./core/secrets.js');
+    const backendUrl = getBackendUrl();
     const check = (ok: boolean) => (ok ? chalk.green('●') : chalk.red('○'));
 
     try {

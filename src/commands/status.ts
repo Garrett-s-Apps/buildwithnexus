@@ -2,6 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { log } from "../ui/logger.js";
 import { isNexusRunning } from "../core/docker.js";
+import { getBackendUrl } from "../core/secrets.js";
 
 interface HealthResponse {
   status?: string;
@@ -41,7 +42,7 @@ export const statusCommand = new Command("status")
   .description("Check NEXUS runtime health")
   .option("--json", "Output as JSON")
   .action(async (opts) => {
-    const backendUrl = process.env.BACKEND_URL || "http://localhost:4200";
+    const backendUrl = getBackendUrl();
     const { healthy, version, uptimeSeconds } = await checkHttpHealth(backendUrl);
 
     // Only check Docker when the HTTP backend isn't responding

@@ -44,6 +44,13 @@ export function loadConfig(): NexusConfig | null {
   return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
 }
 
+export function getBackendUrl(): string {
+  if (process.env.BACKEND_URL) return process.env.BACKEND_URL;
+  const cfg = loadConfig();
+  const port = cfg?.httpPort ?? 4200;
+  return `http://localhost:${port}`;
+}
+
 export function saveKeys(keys: NexusKeys): void {
   const violations = validateAllKeys(keys as unknown as Record<string, string | undefined>);
   if (violations.length > 0) {

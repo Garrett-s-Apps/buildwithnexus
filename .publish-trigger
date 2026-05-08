@@ -1,0 +1,5 @@
+bump=patch
+nexus_ref=main
+# bumped at 2026-05-08T18:50:00Z
+# this file's only job is to fire .github/workflows/trigger-publish.yml
+# which in turn fires .github/workflows/publish.yml as workflow_dispatch.

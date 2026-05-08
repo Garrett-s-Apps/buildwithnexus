@@ -10,7 +10,8 @@
   "files": [
     "dist/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "SECURITY.md"
   ],
   "scripts": {
     "build": "tsup",
@@ -23,11 +24,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "postinstall": "[ -d .git ] && npm run build && NEXUS_SRC=${NEXUS_SRC:-../nexus} npm run bundle || true",
-    "prepublishOnly": "([ -f dist/nexus-release.tar.gz ] && cp dist/nexus-release.tar.gz /tmp/nexus-release.tar.gz || true) && npm run build && ([ -d \"${NEXUS_SRC:-../nexus}\" ] && NEXUS_SRC=${NEXUS_SRC:-../nexus} npm run bundle || ([ -f /tmp/nexus-release.tar.gz ] && cp /tmp/nexus-release.tar.gz dist/nexus-release.tar.gz)) && ([ -f dist/nexus-release.tar.gz ] || (echo 'ERROR: nexus-release.tar.gz not found. Cannot publish without tarball required by buildwithnexus init' && exit 1))"
+    "audit:ci": "npm audit --audit-level=high --omit=dev",
+    "sbom": "bash scripts/generate-sbom.sh",
+    "verify-package": "bash scripts/verify-package.sh",
+    "prepublishOnly": "test -n \"$NEXUS_SRC\" -a -d \"$NEXUS_SRC/src\" || (echo 'ERROR: NEXUS_SRC must be set to a valid nexus checkout. Refusing to publish without an explicit source-of-truth.' && exit 1) && npm run build && npm run bundle && test -f dist/nexus-release.tar.gz || (echo 'ERROR: dist/nexus-release.tar.gz missing after bundle.' && exit 1)"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20",
+    "npm": ">=10"
   },
   "keywords": [
     "nexus",
@@ -45,7 +49,15 @@
     "type": "git",
     "url": "git+https://github.com/Garretts-Apps/buildwithnexus.git"
   },
+  "bugs": {
+    "url": "https://github.com/Garretts-Apps/buildwithnexus/issues"
+  },
   "homepage": "https://buildwithnexus.dev",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/",
+    "provenance": true
+  },
   "dependencies": {
     "@inquirer/prompts": "^8.2.1",
     "chalk": "^5.3.0",

@@ -50,12 +50,9 @@ jobs:
         with:
           path: buildwithnexus
           fetch-depth: 0
-          # NPM_PERMISSIONED_TOKEN is a fine-grained PAT with contents:read+write
-          # scoped to Garretts-Apps/buildwithnexus AND Garretts-Apps/nexus.
-          # Used here so the version-bump push can bypass branch protection on
-          # main, and reused below for the nexus checkout (cross-repo access).
           token: ${{ secrets.NPM_PERMISSIONED_TOKEN }}
           persist-credentials: true
+          submodules: false
 
       - name: Checkout nexus (sibling, for bundle step)
         uses: actions/checkout@v4.2.2
@@ -65,6 +62,33 @@ jobs:
           token: ${{ secrets.NPM_PERMISSIONED_TOKEN }}
           path: nexus
           persist-credentials: false
+          # nexus has a stale `.gitmodules` entry for nana-tracker (no URL).
+          # Submodules are not needed for the bundle (nana-tracker is excluded
+          # by bundle-release.sh anyway) so disable submodule processing.
+          submodules: false
+
+      - name: Sanitize stale submodule config in nexus
+        working-directory: nexus
+        run: |
+          # actions/checkout's clean step still runs `git submodule sync` even
+          # with submodules:false, which fails if .gitmodules has entries
+          # missing URLs. Strip those entries defensively so any subsequent git
+          # command (rev-parse, log, etc.) doesn't trip.
+          if [ -f .gitmodules ]; then
+            echo "Found .gitmodules — checking for entries without URLs..."
+            cat .gitmodules
+            # If any submodule lacks a URL, drop the entire .gitmodules. We
+            # don't bundle submodules anyway.
+            if ! git config -f .gitmodules --get-regexp 'submodule\..*\.url$' >/dev/null 2>&1; then
+              echo "No valid submodule URLs — removing .gitmodules"
+              rm -f .gitmodules
+              git rm --cached .gitmodules 2>/dev/null || true
+            fi
+          fi
+          # Belt-and-braces: clear any submodule config left in .git/config
+          git config --remove-section submodule.nana-tracker 2>/dev/null || true
+          git config --remove-section submodule.nana-tracker-rails 2>/dev/null || true
+          echo "Sanitization done."
 
       - name: Record nexus source SHA + commit time
         id: nexus-sha
@@ -99,10 +123,6 @@ jobs:
           git add package.json package-lock.json
           git commit -m "chore(release): $NEW_VERSION [skip ci]"
           git tag "$NEW_VERSION"
-          # Push using PAT-credentialed remote (configured by the checkout above).
-          # Falls back gracefully if branch protection blocks: in that case we
-          # still publish to npm with the bumped version, just without updating
-          # the source-of-truth on main. A follow-up PR can sync.
           if ! git push origin HEAD:main --follow-tags; then
             echo "::warning::Could not push bump+tag back to main (branch protection?). Continuing — npm publish will still use the bumped version locally."
           fi
@@ -115,7 +135,7 @@ jobs:
       - name: Audit production dependencies
         working-directory: buildwithnexus
         run: npm audit --audit-level=high --omit=dev
-        continue-on-error: true   # First-run safety net; flip to false once we've seen a green run.
+        continue-on-error: true
 
       - name: Run tests
         working-directory: buildwithnexus

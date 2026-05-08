@@ -50,11 +50,11 @@ jobs:
         with:
           path: buildwithnexus
           fetch-depth: 0
-          # NPM_REPO is a fine-grained PAT scoped to Garretts-Apps/buildwithnexus
-          # AND Garretts-Apps/nexus, contents:read+write. Used here so the
-          # version-bump push can bypass branch protection on main, and reused
-          # below for the nexus checkout (cross-org-repo access).
-          token: ${{ secrets.NPM_REPO }}
+          # NPM_PERMISSIONED_TOKEN is a fine-grained PAT with contents:read+write
+          # scoped to Garretts-Apps/buildwithnexus AND Garretts-Apps/nexus.
+          # Used here so the version-bump push can bypass branch protection on
+          # main, and reused below for the nexus checkout (cross-repo access).
+          token: ${{ secrets.NPM_PERMISSIONED_TOKEN }}
           persist-credentials: true
 
       - name: Checkout nexus (sibling, for bundle step)
@@ -62,7 +62,7 @@ jobs:
         with:
           repository: Garretts-Apps/nexus
           ref: ${{ github.event.inputs.nexus_ref || 'main' }}
-          token: ${{ secrets.NPM_REPO }}
+          token: ${{ secrets.NPM_PERMISSIONED_TOKEN }}
           path: nexus
           persist-credentials: false
 
